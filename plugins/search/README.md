@@ -124,7 +124,7 @@ USN 注意：主要面向 NTFS；Journal 被清或 ID 变化时必须能 fallbac
 
 1. **Index policy + 扫盘**：按 roots 递归，应用白/黑名单，写入文件名索引（替换演示路径）
 2. **持久化 + 启动加载**
-3. **Activate**：`OpenPath` / 打开所在目录 / 复制路径
+3. **Activate**：`OpenPath`（Enter）/ 打开所在目录（Alt+Enter）— 已接；复制路径后续
 4. **增量**：先对 roots 用 Watcher；再上 NTFS USN 作主增量
 5. **可选内容 / 标题索引**：独立 `ContentIndex`，按格式插件化，默认关闭
 

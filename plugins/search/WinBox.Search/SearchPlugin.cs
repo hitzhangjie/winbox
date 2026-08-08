@@ -12,13 +12,15 @@ public sealed class SearchPlugin : IWinBoxPlugin, ISearchService, IQueryHandler
     private readonly InMemoryFileIndex _index = new();
     private readonly SubstringSearchEngine _engine = new();
     private readonly DirectoryScanner _scanner = new();
+    private readonly IPathActivation _pathActivation;
     private readonly object _optionsGate = new();
     private IndexOptions _options;
     private int _started;
 
-    public SearchPlugin(IndexOptions? options = null)
+    public SearchPlugin(IndexOptions? options = null, IPathActivation? pathActivation = null)
     {
         _options = IndexOptionsStore.Clone(options ?? new IndexOptions());
+        _pathActivation = pathActivation ?? new ProcessPathActivation();
     }
 
     public string Id => "winbox.search";
@@ -148,7 +150,23 @@ public sealed class SearchPlugin : IWinBoxPlugin, ISearchService, IQueryHandler
     {
         ArgumentNullException.ThrowIfNull(item);
         cancellationToken.ThrowIfCancellationRequested();
-        // Opening files comes later; skeleton only claims the route.
+
+        var path = item.Payload ?? item.Id;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return Task.CompletedTask;
+        }
+
+        switch (item.Action)
+        {
+            case ResultActionKind.OpenPath:
+                _pathActivation.Open(path);
+                break;
+            case ResultActionKind.OpenContainingFolder:
+                _pathActivation.RevealInFolder(path);
+                break;
+        }
+
         return Task.CompletedTask;
     }
 

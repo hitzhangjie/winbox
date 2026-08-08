@@ -1,5 +1,7 @@
 using WinBox.Search.Index;
 using WinBox.Search.Query;
+using WinBox.Abstractions;
+using WinBox.Search;
 
 namespace WinBox.Search.Tests;
 
@@ -338,6 +340,72 @@ public sealed class SearchPluginTests
         Assert.Contains(hits, h => h.Name.Equals("beta.md", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(await plugin.SearchAsync("alpha"), h => h.Name.Equals("alpha.md", StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public async Task Activate_OpenPath_InvokesPathActivation()
+    {
+        var activation = new RecordingPathActivation();
+        var plugin = new SearchPlugin(pathActivation: activation);
+        await plugin.StartAsync();
+
+        var match = new QueryMatch("winbox.search", 0, "", "readme");
+        var item = new QueryResultItem(
+            Id: @"D:\Github\winbox\README.md",
+            Title: "README.md",
+            Subtitle: @"D:\Github\winbox\README.md",
+            Payload: @"D:\Github\winbox\README.md",
+            Action: ResultActionKind.OpenPath);
+
+        await plugin.ActivateAsync(match, item);
+
+        Assert.Equal([@"D:\Github\winbox\README.md"], activation.Opened);
+        Assert.Empty(activation.Revealed);
+    }
+
+    [Fact]
+    public async Task Activate_OpenContainingFolder_InvokesReveal()
+    {
+        var activation = new RecordingPathActivation();
+        var plugin = new SearchPlugin(pathActivation: activation);
+        await plugin.StartAsync();
+
+        var match = new QueryMatch("winbox.search", 0, "", "readme");
+        var item = new QueryResultItem(
+            Id: @"D:\Github\winbox\README.md",
+            Title: "README.md",
+            Payload: @"D:\Github\winbox\README.md",
+            Action: ResultActionKind.OpenContainingFolder);
+
+        await plugin.ActivateAsync(match, item);
+
+        Assert.Equal([@"D:\Github\winbox\README.md"], activation.Revealed);
+        Assert.Empty(activation.Opened);
+    }
+
+    [Fact]
+    public async Task Activate_EmptyPayload_IsNoOp()
+    {
+        var activation = new RecordingPathActivation();
+        var plugin = new SearchPlugin(pathActivation: activation);
+        await plugin.StartAsync();
+
+        await plugin.ActivateAsync(
+            new QueryMatch("winbox.search", 0, "", "x"),
+            new QueryResultItem("id", "title", Payload: "  ", Action: ResultActionKind.OpenPath));
+
+        Assert.Empty(activation.Opened);
+        Assert.Empty(activation.Revealed);
+    }
+}
+
+internal sealed class RecordingPathActivation : IPathActivation
+{
+    public List<string> Opened { get; } = [];
+    public List<string> Revealed { get; } = [];
+
+    public void Open(string path) => Opened.Add(path);
+
+    public void RevealInFolder(string path) => Revealed.Add(path);
 }
 
 public sealed class IndexOptionsStoreTests

@@ -33,13 +33,18 @@ internal sealed class LauncherQuerySession
         _ = QueryDebouncedAsync(rawInput, version, token);
     }
 
-    public async Task ActivateSelectedAsync()
+    public async Task ActivateSelectedAsync(ResultActionKind? actionOverride = null)
     {
         var match = _state.ActiveMatch;
         var item = _state.SelectedItem;
         if (match is null || item is null)
         {
             return;
+        }
+
+        if (actionOverride is { } action && action != item.Action)
+        {
+            item = item with { Action = action };
         }
 
         await _router.ActivateAsync(match, item).ConfigureAwait(true);

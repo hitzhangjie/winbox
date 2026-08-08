@@ -36,4 +36,6 @@ public enum ResultActionKind
     OpenUrl = 2,
     RunCommand = 3,
     CopyText = 4,
+    /// <summary>Open Explorer with the path selected (containing folder for files).</summary>
+    OpenContainingFolder = 5,
 }

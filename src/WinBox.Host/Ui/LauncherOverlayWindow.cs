@@ -166,14 +166,17 @@ internal sealed class LauncherOverlayWindow : Window
 
     private async void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape)
+        // Alt+key arrives as Key.System; use SystemKey so Alt+Enter is detectable.
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+
+        if (key == Key.Escape)
         {
             DismissOverlay();
             e.Handled = true;
             return;
         }
 
-        if (e.Key == Key.Back
+        if (key == Key.Back
             && _queryBox.CaretIndex == 0
             && string.IsNullOrEmpty(_queryBox.Text)
             && !string.IsNullOrEmpty(_state.ModeLabel))
@@ -187,26 +190,42 @@ internal sealed class LauncherOverlayWindow : Window
             return;
         }
 
-        if (e.Key == Key.Down)
+        if (key == Key.Down)
         {
             _state.SelectNext();
             e.Handled = true;
             return;
         }
 
-        if (e.Key == Key.Up)
+        if (key == Key.Up)
         {
             _state.SelectPrevious();
             e.Handled = true;
             return;
         }
 
-        if (e.Key == Key.Enter)
+        if (key == Key.Enter)
         {
-            await _session.ActivateSelectedAsync().ConfigureAwait(true);
+            await _session.ActivateSelectedAsync(ResolveEnterActionOverride()).ConfigureAwait(true);
             DismissOverlay();
             e.Handled = true;
         }
+    }
+
+    /// <summary>
+    /// Alt+Enter reveals the selected path in Explorer (Spotlight-style).
+    /// Plain Enter uses the result's default <see cref="ResultActionKind"/>.
+    /// </summary>
+    private ResultActionKind? ResolveEnterActionOverride()
+    {
+        var item = _state.SelectedItem;
+        if (item is null)
+        {
+            return null;
+        }
+
+        var alt = (Keyboard.Modifiers & ModifierKeys.Alt) != 0;
+        return PathActivationShortcuts.ResolveOpenPathOverride(item.Action, alt);
     }
 
     private void SyncFromState()

@@ -1,0 +1,27 @@
+---
+description: WinBox quality process — contributors bring ideas; agents must follow skills for architecture, testing, and shipping. Always apply in this repo.
+alwaysApply: true
+---
+
+# WinBox Quality Guardrails
+
+Contributors are **not** required to be C# experts. They **are** required to follow process.
+
+Process defends: **maintenance → testing → delivery → distribution**.
+Contributors bring: **enthusiasm and ideas**.
+Agents bring: skills in `.cursor/skills/` for zero-cost startup and quality enforcement.
+
+## Mandatory agent behavior
+
+1. **New session / stuck / first change in repo** → read and follow `winbox-onboarding`.
+2. **Any code, protocol, CI, or packaging change** → follow `winbox-change-loop` end-to-end. Do not skip the verification gate.
+3. **Where to put code / new project / references** → `winbox-architecture`.
+4. **Tests or CI failures** → `winbox-testing`.
+5. **PR, review, release, distribute** → `winbox-ship`.
+
+## Non-negotiables
+
+- Prefer `make test` / `make ci` over ad-hoc claims that “it should work”.
+- Do not reverse dependency direction (plugins must not reference Host).
+- Do not expand scope into unrelated refactors while implementing an idea.
+- Keep CONTRIBUTING.md and skills in sync when process changes.

@@ -1,0 +1,41 @@
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# IDE / Editor
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.swp
+*~
+
+# Build
+bin/
+obj/
+target/
+dist/
+build/
+out/
+*.exe
+*.dll
+*.pdb
+*.ilk
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Env / secrets
+.env
+.env.*
+*.local
+
+# Logs
+*.log
+logs/

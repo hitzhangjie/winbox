@@ -682,18 +682,45 @@ internal sealed class FileSearchWindow : Window
         style.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(0)));
         style.Setters.Add(new Setter(Control.FocusVisualStyleProperty, null));
         style.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
+        style.Setters.Add(new Setter(Control.VerticalContentAlignmentProperty, VerticalAlignment.Center));
+        // Own the GridView row chrome — the theme ListViewItem template paints a thin
+        // hover strip that does not match icon-tall rows (Name cell has a 16px glyph).
+        style.Setters.Add(new Setter(Control.TemplateProperty, CreateResultItemTemplate()));
+        return style;
+    }
+
+    private static ControlTemplate CreateResultItemTemplate()
+    {
+        var template = new ControlTemplate(typeof(ListViewItem));
+        var border = new FrameworkElementFactory(typeof(Border));
+        border.Name = "Bd";
+        border.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty));
+        border.SetValue(Border.BorderBrushProperty, new TemplateBindingExtension(Control.BorderBrushProperty));
+        border.SetValue(Border.BorderThicknessProperty, new TemplateBindingExtension(Control.BorderThicknessProperty));
+        border.SetValue(Border.PaddingProperty, new TemplateBindingExtension(Control.PaddingProperty));
+        border.SetValue(Border.SnapsToDevicePixelsProperty, true);
+
+        var row = new FrameworkElementFactory(typeof(GridViewRowPresenter));
+        row.SetValue(
+            FrameworkElement.VerticalAlignmentProperty,
+            new TemplateBindingExtension(Control.VerticalContentAlignmentProperty));
+        row.SetValue(
+            UIElement.SnapsToDevicePixelsProperty,
+            new TemplateBindingExtension(UIElement.SnapsToDevicePixelsProperty));
+        border.AppendChild(row);
+        template.VisualTree = border;
 
         var selected = new Trigger { Property = ListViewItem.IsSelectedProperty, Value = true };
-        selected.Setters.Add(new Setter(Control.BackgroundProperty, WinBoxTheme.SelectionBrush));
-        style.Triggers.Add(selected);
+        selected.Setters.Add(new Setter(Border.BackgroundProperty, WinBoxTheme.SelectionBrush) { TargetName = "Bd" });
+        template.Triggers.Add(selected);
 
         var hover = new MultiTrigger();
         hover.Conditions.Add(new Condition(ListViewItem.IsMouseOverProperty, true));
         hover.Conditions.Add(new Condition(ListViewItem.IsSelectedProperty, false));
-        hover.Setters.Add(new Setter(Control.BackgroundProperty, WinBoxTheme.HoverBrush));
-        style.Triggers.Add(hover);
+        hover.Setters.Add(new Setter(Border.BackgroundProperty, WinBoxTheme.HoverBrush) { TargetName = "Bd" });
+        template.Triggers.Add(hover);
 
-        return style;
+        return template;
     }
 
     private sealed record FilterRow(string Id, string Label, string Glyph);

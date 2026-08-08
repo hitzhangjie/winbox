@@ -25,7 +25,7 @@ WinBox 是一个面向 Windows 的轻量宿主应用：核心只做插件发现�
 | 能力 | 说明 |
 |------|------|
 | 全局热键唤起 | `Shift+Alt+U` 打开 launcher；`Esc` 关闭 |
-| 文件名快速搜索 | 按配置 roots 扫盘建内存索引；子串匹配 + 简单排序 |
+| 文件名快速搜索 | 按配置 roots 建索引；启动从 SQLite 加载；Watcher/USN 增量；子串匹配 |
 | Listary 风格 File Search | 类型 / 修改时间过滤、展开查看、资源管理器风格图标 |
 | 索引设置 | 托盘 → Index settings；配置写入 `%LocalAppData%\WinBox\` |
 | 工具箱插件 | 计算器、CMD、可配置 Web 前缀搜索（Settings → Web）、AI 骨架 |
@@ -33,7 +33,7 @@ WinBox 是一个面向 Windows 的轻量宿主应用：核心只做插件发现�
 | 质量门禁 | `make test` / `make ci` + GitHub Actions CI |
 | 分发打包 | `make dist` → 便携 zip + Setup 安装包；打 tag / 发 Release 自动挂附件 |
 
-尚未完成（有意延后）：持久化索引、USN/Watcher 增量、OpenPath 等激活动作、插件按需发现安装、代码签名 / winget。
+尚未完成（有意延后）：全文/标题可选索引、更强的 USN 运行时主循环、插件按需发现安装、代码签名 / winget。
 
 ## 支持平台
 

@@ -78,7 +78,7 @@ WinBox.Host ──────────► WinBox.Abstractions
 1. **注册**：`new SearchPlugin()` 放进 `PluginRegistry`
 2. **启动**：`StartAllAsync()` → 每个插件的 `StartAsync()`
 3. **按能力取用**：`GetRequired<ISearchService>()` —— 要的是「能搜索」，不是某个具体类名
-4. **建索引 → 热键待命**：`RebuildIndexAsync()` 按插件配置的 roots/policy 扫盘；`QueryRouter` 按输入分流到 `IQueryHandler`；`Shift+Alt+U` 唤起；`Esc` 关闭；`Ctrl+C` 时 `StopAllAsync`
+4. **建索引 → 热键待命**：`EnsureIndexReadyAsync()` 优先从 SQLite 加载（policy 变了才全量扫盘）；`QueryRouter` 按输入分流到 `IQueryHandler`；`Shift+Alt+U` 唤起；`Esc` 关闭；`Ctrl+C` 时 `StopAllAsync`
 
 
 搜索插件 `SearchPlugin` 同时实现两个接口：
@@ -91,7 +91,7 @@ WinBox.Host ──────────► WinBox.Abstractions
 - `Index/InMemoryFileIndex`：存路径
 - `Query/SubstringSearchEngine`：子串匹配 + 简单排序
 
-当前已按配置 roots + 白/黑名单真实扫盘写入内存文件名索引；范围由**托盘 → Index settings** 编辑并写入 `%LocalAppData%\WinBox\index-options.json`。持久化索引、增量更新见后续阶段。设计细节：[plugins/search/README.md](plugins/search/README.md)。
+当前已按配置 roots + 白/黑名单扫盘写入 SQLite；内存为有上限的 LRU 热点缓存（增量双写；查询在超预算时回落 SQLite）。总览见 [plugins/search/README.md §3](plugins/search/README.md#3-索引如何持久化增量更新支持查询已实现)。范围由**托盘 → Settings → Index** 编辑（含 store 目录与内存预算），写入 `%LocalAppData%\WinBox\index-options.json`。
 
 ---
 
@@ -100,9 +100,10 @@ WinBox.Host ──────────► WinBox.Abstractions
 | 已经有的 | 还只是骨架 / 未做 |
 |----------|-------------------|
 | 多项目解决方案 + 清晰引用关系 | 从磁盘自动发现插件（现在是代码里 `new`） |
-| 插件启停合同 + 按策略扫盘建文件名索引 | 持久化索引文件本身 |
-| 内存索引 + 子串搜索（默认输入） | OpenPath 等激活动作 |
-| 索引设置面板（托盘 → Index settings）+ JSON 配置 | Watcher / USN 增量、全文/标题可选索引 |
+| 插件启停合同 + 按策略扫盘建文件名索引 | 全文 / 标题可选索引 |
+| SQLite 持久化 + 启动加载 + 可配 store 路径 | 云盘 / 网络盘完整语义 |
+| Watcher 增量 + USN 冷启动追赶（失败回退） | FRN→完整路径解析的更强 USN 运行时主循环 |
+| 索引设置面板（托盘 → Settings）+ JSON 配置 | 插件市场与在线更新 |
 | 全局热键 + 托盘 + 唤起层 + QueryRouter | 可配置热键；launcher UI 见 `winbox-ui`（基础已落地；craft 审计见 `craft-audit.md`） |
 | File Search（类型/mtime 过滤、展开、shell 图标） | 预览面板、更多结果动作 |
 | Web 前缀可配置（默认 google/gg、so、yt、x；一行多 keyword）+ Settings → Web | AI 设置面板、LLM 流式 |

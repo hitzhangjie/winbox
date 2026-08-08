@@ -25,6 +25,8 @@ internal sealed class IndexSettingsWindow : Window
     private readonly TextBox _includeExtensionsBox;
     private readonly TextBox _excludeExtensionsBox;
     private readonly TextBox _excludePatternsBox;
+    private readonly TextBox _indexStoreDirBox;
+    private readonly TextBox _maxMemoryMbBox;
     private readonly CheckBox _recursiveBox;
     private readonly CheckBox _startWithWindowsBox;
     private readonly ListBox _webList;
@@ -177,6 +179,25 @@ internal sealed class IndexSettingsWindow : Window
         indexForm.Children.Add(Hint("Skip when any path segment equals the name (one per line). e.g. node_modules, .git"));
         _excludePatternsBox = SettingsChrome.CreateField(height: 88, acceptReturn: true);
         indexForm.Children.Add(SettingsChrome.WrapFlat(_excludePatternsBox));
+
+        indexForm.Children.Add(SectionLabel("Index store folder"));
+        indexForm.Children.Add(Hint(
+            "SQLite database folder (files.db). Default: %LocalAppData%\\WinBox\\index. Restart loads from disk when policy unchanged."));
+        _indexStoreDirBox = SettingsChrome.CreateField();
+        indexForm.Children.Add(SettingsChrome.WrapFlat(_indexStoreDirBox));
+        indexForm.Children.Add(PathListButtons(
+            add: () => BrowseIndexStoreFolder(),
+            remove: () => { _indexStoreDirBox.Text = IndexOptions.DefaultIndexStoreDirectory; },
+            addLabel: "Browse…",
+            removeLabel: "Reset default"));
+
+        indexForm.Children.Add(SectionLabel("Max memory for index cache (MB)"));
+        indexForm.Children.Add(Hint(
+            "Disk index can grow to GBs. RAM keeps a hot LRU cache within this budget; " +
+            "misses load from SQLite and may evict older cache entries. " +
+            "0 = unlimited (load everything). Default 512."));
+        _maxMemoryMbBox = SettingsChrome.CreateField();
+        indexForm.Children.Add(SettingsChrome.WrapFlat(_maxMemoryMbBox));
 
         _recursiveBox = new CheckBox
         {
@@ -518,6 +539,8 @@ internal sealed class IndexSettingsWindow : Window
         SettingsChrome.StyleEmbeddedField(_includeExtensionsBox);
         SettingsChrome.StyleEmbeddedField(_excludeExtensionsBox);
         SettingsChrome.StyleEmbeddedField(_excludePatternsBox);
+        SettingsChrome.StyleEmbeddedField(_indexStoreDirBox);
+        SettingsChrome.StyleEmbeddedField(_maxMemoryMbBox);
         SettingsChrome.StyleEmbeddedList(_rootsList);
         SettingsChrome.StyleEmbeddedList(_excludeRootsList);
         SettingsChrome.StyleEmbeddedList(_webList);
@@ -579,12 +602,28 @@ internal sealed class IndexSettingsWindow : Window
         _includeExtensionsBox.Text = IndexOptionsText.JoinComma(options.IncludeExtensions);
         _excludeExtensionsBox.Text = IndexOptionsText.JoinComma(options.ExcludeExtensions);
         _excludePatternsBox.Text = IndexOptionsText.JoinLines(options.ExcludePathPatterns);
+        _indexStoreDirBox.Text = string.IsNullOrWhiteSpace(options.IndexStoreDirectory)
+            ? IndexOptions.DefaultIndexStoreDirectory
+            : options.IndexStoreDirectory;
+        _maxMemoryMbBox.Text = options.MaxInMemoryMegabytes.ToString();
         _recursiveBox.IsChecked = options.Recursive;
     }
 
     private IndexOptions CaptureOptions()
     {
         var excludePatterns = IndexOptionsText.SplitList(_excludePatternsBox.Text, '\n', '\r');
+        var storeDir = _indexStoreDirBox.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(storeDir)
+            || storeDir.Equals(IndexOptions.DefaultIndexStoreDirectory, StringComparison.OrdinalIgnoreCase))
+        {
+            storeDir = string.Empty;
+        }
+
+        var maxMb = IndexOptions.DefaultMaxInMemoryMegabytes;
+        if (int.TryParse(_maxMemoryMbBox.Text?.Trim(), out var parsed) && parsed >= 0)
+        {
+            maxMb = parsed;
+        }
 
         return new IndexOptions
         {
@@ -597,7 +636,20 @@ internal sealed class IndexSettingsWindow : Window
                 ? excludePatterns
                 : IndexOptions.DefaultExcludePathPatterns,
             Recursive = _recursiveBox.IsChecked == true,
+            IndexStoreDirectory = storeDir,
+            MaxInMemoryMegabytes = maxMb,
         };
+    }
+
+    private void BrowseIndexStoreFolder()
+    {
+        var dialog = new OpenFolderDialog { Title = "Choose index store folder" };
+        if (dialog.ShowDialog(this) != true || string.IsNullOrWhiteSpace(dialog.FolderName))
+        {
+            return;
+        }
+
+        _indexStoreDirBox.Text = dialog.FolderName;
     }
 
     private void AddFolderToList(ListBox list, string dialogTitle)
@@ -917,7 +969,10 @@ internal sealed class IndexSettingsWindow : Window
 
             await _search.ApplyOptionsAsync(options).ConfigureAwait(true);
 
-            UpdateStatus($"Saved. Indexed {_search.IndexedCount} file(s).");
+            var mode = _search.IsFullyMemoryResident
+                ? $"full memory cache ({_search.MemoryCacheCount})"
+                : $"LRU cache {_search.MemoryCacheCount} / budget {options.MaxInMemoryMegabytes} MB (SQLite fallback)";
+            UpdateStatus($"Saved. Indexed {_search.IndexedCount} file(s); {mode}.");
         }
         catch (Exception ex)
         {

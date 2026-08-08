@@ -64,8 +64,11 @@ internal static class Program
         {
             await registry.StartAllAsync().ConfigureAwait(true);
 
-            await searchPlugin.RebuildIndexAsync().ConfigureAwait(true);
-            Console.WriteLine($"Indexed {searchPlugin.IndexedCount} file(s) from configured roots.");
+            var ready = await searchPlugin.EnsureIndexReadyAsync().ConfigureAwait(true);
+            var readyLabel = ready.Kind == IndexReadyKind.LoadedFromStore
+                ? $"Loaded {ready.Count} file(s) from index store."
+                : $"Rebuilt index — {ready.Count} file(s).";
+            Console.WriteLine(readyLabel);
 
             var router = new QueryRouter(registry.GetMany<Abstractions.IQueryHandler>());
             var overlayState = new LauncherOverlayState();
@@ -147,7 +150,9 @@ internal static class Program
             tray.ExitRequested += () => app.Shutdown();
             tray.ShowBalloon(
                 "WinBox",
-                $"Ready — {searchPlugin.IndexedCount} files indexed. Right-click tray for Settings.");
+                ready.Kind == IndexReadyKind.LoadedFromStore
+                    ? $"Ready — {ready.Count} files loaded from store. Right-click tray for Settings."
+                    : $"Ready — {ready.Count} files indexed. Right-click tray for Settings.");
 
             app.Exit += (_, _) =>
             {

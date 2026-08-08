@@ -43,6 +43,38 @@ public sealed class IndexOptions
 
     public bool Recursive { get; init; } = true;
 
+    /// <summary>
+    /// Directory for the SQLite index DB (<c>files.db</c>). Empty uses <see cref="DefaultIndexStoreDirectory"/>.
+    /// </summary>
+    public string IndexStoreDirectory { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Cap for the in-memory LRU cache (megabytes). When the full index exceeds this,
+    /// RAM keeps a hot subset; search / FRN misses fall back to SQLite and promote hits.
+    /// ≤ 0 = unlimited. Default 512.
+    /// </summary>
+    public int MaxInMemoryMegabytes { get; init; } = DefaultMaxInMemoryMegabytes;
+
+    public const int DefaultMaxInMemoryMegabytes = 512;
+
+    /// <summary>Default: %LocalAppData%\WinBox\index</summary>
+    public static string DefaultIndexStoreDirectory =>
+        Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "WinBox",
+            "index");
+
+    /// <summary>Resolved store directory (never empty).</summary>
+    public string ResolveIndexStoreDirectory()
+    {
+        if (!string.IsNullOrWhiteSpace(IndexStoreDirectory))
+        {
+            return IndexStoreDirectory.Trim();
+        }
+
+        return DefaultIndexStoreDirectory;
+    }
+
     /// <summary>First-run / demo roots.</summary>
     public static IndexOptions ForDevRoots(params string[] roots) => new()
     {
@@ -50,5 +82,7 @@ public sealed class IndexOptions
         ExcludeRoots = [],
         ExcludePathPatterns = DefaultExcludePathPatterns,
         Recursive = true,
+        IndexStoreDirectory = string.Empty,
+        MaxInMemoryMegabytes = DefaultMaxInMemoryMegabytes,
     };
 }

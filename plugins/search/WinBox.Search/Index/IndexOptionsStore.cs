@@ -87,6 +87,8 @@ public sealed class IndexOptionsStore
             IncludePathPatterns = options.IncludePathPatterns.ToArray(),
             ExcludePathPatterns = options.ExcludePathPatterns.ToArray(),
             Recursive = options.Recursive,
+            IndexStoreDirectory = options.IndexStoreDirectory ?? string.Empty,
+            MaxInMemoryMegabytes = options.MaxInMemoryMegabytes,
         };
     }
 
@@ -99,6 +101,8 @@ public sealed class IndexOptionsStore
         public List<string>? IncludePathPatterns { get; set; }
         public List<string>? ExcludePathPatterns { get; set; }
         public bool Recursive { get; set; } = true;
+        public string? IndexStoreDirectory { get; set; }
+        public int? MaxInMemoryMegabytes { get; set; }
 
         public static IndexOptionsDto FromOptions(IndexOptions options) => new()
         {
@@ -109,6 +113,10 @@ public sealed class IndexOptionsStore
             IncludePathPatterns = options.IncludePathPatterns.ToList(),
             ExcludePathPatterns = options.ExcludePathPatterns.ToList(),
             Recursive = options.Recursive,
+            IndexStoreDirectory = string.IsNullOrWhiteSpace(options.IndexStoreDirectory)
+                ? null
+                : options.IndexStoreDirectory.Trim(),
+            MaxInMemoryMegabytes = options.MaxInMemoryMegabytes,
         };
 
         public IndexOptions ToOptions() => new()
@@ -122,6 +130,12 @@ public sealed class IndexOptionsStore
                 ? NormalizeList(ExcludePathPatterns)
                 : IndexOptions.DefaultExcludePathPatterns.ToArray(),
             Recursive = Recursive,
+            IndexStoreDirectory = string.IsNullOrWhiteSpace(IndexStoreDirectory)
+                ? string.Empty
+                : IndexStoreDirectory.Trim(),
+            MaxInMemoryMegabytes = MaxInMemoryMegabytes is null or < 0
+                ? IndexOptions.DefaultMaxInMemoryMegabytes
+                : MaxInMemoryMegabytes.Value,
         };
 
         private static IReadOnlyList<string> NormalizeList(List<string>? values) =>

@@ -262,7 +262,8 @@ public sealed class SearchPluginTests
     [Fact]
     public async Task IndexAndSearch_ReturnsExpectedHit()
     {
-        var plugin = new SearchPlugin();
+        using var fixture = TempIndexFixture.Create();
+        var plugin = new SearchPlugin(new IndexOptions { IndexStoreDirectory = fixture.StoreDirectory });
         await plugin.StartAsync();
         await plugin.IndexPathsAsync(
         [
@@ -283,12 +284,7 @@ public sealed class SearchPluginTests
         fixture.WriteFile("proposal/12345.md", "go proposal");
         fixture.WriteFile("node_modules/ignore.js", "nope");
 
-        var plugin = new SearchPlugin(new IndexOptions
-        {
-            Roots = [fixture.Root],
-            ExcludePathPatterns = IndexOptions.DefaultExcludePathPatterns,
-            Recursive = true,
-        });
+        var plugin = new SearchPlugin(fixture.CreateOptions());
 
         await plugin.StartAsync();
         await plugin.RebuildIndexAsync();
@@ -305,7 +301,12 @@ public sealed class SearchPluginTests
     [Fact]
     public async Task RebuildIndex_BeforeStart_Throws()
     {
-        var plugin = new SearchPlugin(IndexOptions.ForDevRoots(@"D:\Github\proposal"));
+        using var fixture = TempIndexFixture.Create();
+        var plugin = new SearchPlugin(new IndexOptions
+        {
+            Roots = [@"D:\Github\proposal"],
+            IndexStoreDirectory = fixture.StoreDirectory,
+        });
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => plugin.RebuildIndexAsync());
@@ -319,22 +320,12 @@ public sealed class SearchPluginTests
         first.WriteFile("alpha.md", "a");
         second.WriteFile("beta.md", "b");
 
-        var plugin = new SearchPlugin(new IndexOptions
-        {
-            Roots = [first.Root],
-            ExcludePathPatterns = [],
-            Recursive = true,
-        });
+        var plugin = new SearchPlugin(first.CreateOptions(excludePathPatterns: []));
         await plugin.StartAsync();
         await plugin.RebuildIndexAsync();
         Assert.Equal(1, plugin.IndexedCount);
 
-        await plugin.ApplyOptionsAsync(new IndexOptions
-        {
-            Roots = [second.Root],
-            ExcludePathPatterns = [],
-            Recursive = true,
-        });
+        await plugin.ApplyOptionsAsync(second.CreateOptions(excludePathPatterns: []));
 
         Assert.Equal(1, plugin.IndexedCount);
         var hits = await plugin.SearchAsync("beta");
@@ -345,8 +336,11 @@ public sealed class SearchPluginTests
     [Fact]
     public async Task Activate_OpenPath_InvokesPathActivation()
     {
+        using var fixture = TempIndexFixture.Create();
         var activation = new RecordingPathActivation();
-        var plugin = new SearchPlugin(pathActivation: activation);
+        var plugin = new SearchPlugin(
+            new IndexOptions { IndexStoreDirectory = fixture.StoreDirectory },
+            pathActivation: activation);
         await plugin.StartAsync();
 
         var match = new QueryMatch("winbox.search", 0, "", "readme");
@@ -366,8 +360,11 @@ public sealed class SearchPluginTests
     [Fact]
     public async Task Activate_OpenContainingFolder_InvokesReveal()
     {
+        using var fixture = TempIndexFixture.Create();
         var activation = new RecordingPathActivation();
-        var plugin = new SearchPlugin(pathActivation: activation);
+        var plugin = new SearchPlugin(
+            new IndexOptions { IndexStoreDirectory = fixture.StoreDirectory },
+            pathActivation: activation);
         await plugin.StartAsync();
 
         var match = new QueryMatch("winbox.search", 0, "", "readme");
@@ -386,8 +383,11 @@ public sealed class SearchPluginTests
     [Fact]
     public async Task Activate_EmptyPayload_IsNoOp()
     {
+        using var fixture = TempIndexFixture.Create();
         var activation = new RecordingPathActivation();
-        var plugin = new SearchPlugin(pathActivation: activation);
+        var plugin = new SearchPlugin(
+            new IndexOptions { IndexStoreDirectory = fixture.StoreDirectory },
+            pathActivation: activation);
         await plugin.StartAsync();
 
         await plugin.ActivateAsync(
@@ -407,12 +407,7 @@ public sealed class SearchPluginTests
         fixture.WriteFile("shot.png", "img");
         fixture.WriteFile("report.pdf", "%PDF");
 
-        var plugin = new SearchPlugin(new IndexOptions
-        {
-            Roots = [fixture.Root],
-            ExcludePathPatterns = [],
-            Recursive = true,
-        });
+        var plugin = new SearchPlugin(fixture.CreateOptions(excludePathPatterns: []));
         await plugin.StartAsync();
         await plugin.RebuildIndexAsync();
 
@@ -497,6 +492,8 @@ public sealed class IndexOptionsStoreTests
                 IncludePathPatterns = [],
                 ExcludePathPatterns = [".git", "node_modules"],
                 Recursive = false,
+                IndexStoreDirectory = @"D:\data\winbox-index",
+                MaxInMemoryMegabytes = 256,
             };
 
             store.Save(original);
@@ -508,6 +505,8 @@ public sealed class IndexOptionsStoreTests
             Assert.Equal(original.ExcludeExtensions, loaded.ExcludeExtensions);
             Assert.Equal(original.ExcludePathPatterns, loaded.ExcludePathPatterns);
             Assert.False(loaded.Recursive);
+            Assert.Equal(@"D:\data\winbox-index", loaded.IndexStoreDirectory);
+            Assert.Equal(256, loaded.MaxInMemoryMegabytes);
         }
         finally
         {
@@ -557,22 +556,36 @@ public sealed class IndexOptionsTextTests
 /// </summary>
 internal sealed class TempIndexFixture : IDisposable
 {
-    private TempIndexFixture(string root)
+    private TempIndexFixture(string root, string storeDirectory)
     {
         Root = root;
+        StoreDirectory = storeDirectory;
+        Directory.CreateDirectory(StoreDirectory);
     }
 
     public string Root { get; }
 
+    public string StoreDirectory { get; }
+
     public static TempIndexFixture Create()
     {
-        var root = Path.Combine(
-            Path.GetTempPath(),
-            "winbox-index-tests",
-            Guid.NewGuid().ToString("N"));
+        var id = Guid.NewGuid().ToString("N");
+        var root = Path.Combine(Path.GetTempPath(), "winbox-index-tests", id);
+        var store = Path.Combine(Path.GetTempPath(), "winbox-index-tests", id + "-store");
         Directory.CreateDirectory(root);
-        return new TempIndexFixture(root);
+        return new TempIndexFixture(root, store);
     }
+
+    public IndexOptions CreateOptions(
+        IReadOnlyList<string>? excludePathPatterns = null,
+        bool recursive = true) =>
+        new()
+        {
+            Roots = [Root],
+            ExcludePathPatterns = excludePathPatterns ?? IndexOptions.DefaultExcludePathPatterns,
+            Recursive = recursive,
+            IndexStoreDirectory = StoreDirectory,
+        };
 
     public string WriteFile(string relativePath, string contents)
     {
@@ -599,6 +612,18 @@ internal sealed class TempIndexFixture : IDisposable
         catch (IOException)
         {
             // Best-effort cleanup; leftover dirs under %TEMP%\winbox-index-tests are OK.
+        }
+
+        try
+        {
+            if (Directory.Exists(StoreDirectory))
+            {
+                Directory.Delete(StoreDirectory, recursive: true);
+            }
+        }
+        catch (IOException)
+        {
+            // SQLite may briefly lock files.db during dispose.
         }
     }
 }

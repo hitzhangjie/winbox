@@ -1,6 +1,7 @@
 # WinBox UI reference
 
 Companion to [SKILL.md](SKILL.md). Agents read this when implementing or reviewing UI.
+For look-and-feel evaluation, use [craft-audit.md](craft-audit.md).
 
 ## Benchmark interaction map
 
@@ -8,23 +9,26 @@ What users expect after Alfred / Raycast / Spotlight / Listary / PowerToys:
 
 | Expectation | Why it matters | WinBox today (Host `Ui/`) |
 |-------------|----------------|---------------------------|
-| Fixed, memorable summon position | Muscle memory | Hard-coded top-center (`Top = workArea.Top + 120`); not draggable; not persisted |
-| Soft material / rounded chrome | Feels “OS integrated” | Flat `#202020` rectangle, `WindowStyle=None`, no radius/shadow/Mica |
-| Two-line results + icon | Scanability | `ListBox` of concatenated `"Title  —  Subtitle"` strings |
-| Vertical scroll only | Long paths must not shove layout | Default `ListBox` can show **horizontal** scrollbar |
-| Selection chrome | Orientation while arrowing | Stock ListBox selection |
-| Empty / no-result states | Trust | Results panel collapses; no explicit empty state |
-| Footer shortcut hints | Discoverability | None (Alt+Enter exists but invisible) |
-| Settings as preferences | Authority | Single dark form; stock buttons; functional but “dev tool” |
-| Tray as brand mark | Always-visible identity | 16×16 runtime-drawn circle + “W” |
-| Theme / position prefs | Personalization | Not exposed |
+| Fixed, memorable summon position | Muscle memory | Draggable + persisted (`ui-options.json`) |
+| Soft material / rounded chrome | Feels “OS integrated” | Radius + shadow; settings Mica/round when available |
+| Two-line results + icon | Scanability | `ResultRowView` title/subtitle + action glyph |
+| Vertical scroll only | Long paths must not shove layout | Horizontal scroll disabled; ellipsis + tooltip |
+| Selection chrome | Orientation while arrowing | Themed selection (not stock blue) |
+| Empty / no-result states | Trust | Empty/no-result text present |
+| Footer shortcut hints | Discoverability | Footer hints present |
+| Settings as preferences | Authority | Tabbed Index / General / Shortcuts + tokens |
+| Tray as brand mark | Always-visible identity | Multi-size `Assets/winbox.ico` |
+| Theme / position prefs | Personalization | Dark / light / system + layout knobs |
 
-Severity guide for prioritization:
+## Maturity
 
-- **P0 (trust/usability)**: horizontal scroll, string-concat rows, missing keyboard discoverability for existing actions
-- **P1 (product feel)**: radius/material, selection style, empty states, position drag+persist
-- **P2 (brand)**: tray ICO, settings IA, motion, accent theming
-- **P3 (platform)**: Mica/Acrylic, multi-monitor quirks, light theme
+| Stage | Status | Goal |
+|-------|--------|------|
+| **1 Foundation** | Largely done | Tokens, rows, scroll, radius, empty/footer, tray, settings IA, theme |
+| **2 Craft** | Active | Hierarchy, scanability, teaching chrome, settings polish, microcopy |
+| **3 Platform** | Later | Deeper Fluent/Mica, a11y depth, optional native Fluent theme |
+
+Do not reopen stage-1 work unless a regression appears. Prefer craft-audit → ranked P1/P2 fixes.
 
 ## Overlay anatomy (target)
 
@@ -48,34 +52,35 @@ Width: ~560–640px. Max results height: ~320–360px (~6–7 rows).
 Keep `ModeLabel | payload` pattern. Accent color on label only; separator muted.
 Backspace-at-start exits mode (already implemented) — preserve.
 
-## Design tokens (proposed Host constants)
+## Design tokens (Host)
 
-Centralize in something like `Host.Ui/WinBoxTheme.cs` (name flexible):
+Centralized in `WinBoxTheme` + live knobs in `UiLayout`:
 
-| Token | Value | Use |
-|-------|-------|-----|
-| `SurfaceOverlay` | `#1C1C1C` | Overlay background |
-| `SurfaceRaised` | `#242424` | Settings panels |
-| `SurfaceSunken` | `#141414` | Result list well |
-| `BorderSubtle` | `#3A3A3A` | Hairlines |
-| `TextPrimary` | `#F2F2F2` | Input + titles |
-| `TextSecondary` | `#9A9A9A` | Subtitles / hints |
-| `Accent` | `#8AC7FF` | Mode, focus, primary CTA |
-| `Selection` | `#2A3A48` or Accent @ 22% opacity | Selected row |
-| `RadiusOverlay` | 12–16 | Overlay + clip |
-| `FontInput` | 18–20 | Query box |
-| `FontTitle` | 14 | Result title |
-| `FontSubtitle` | 12 | Result subtitle |
-| `RowHeight` | 44–48 | Result row |
-| `OverlayWidth` | 560–640 | Fixed; do not grow with path length |
+| Token | Approx value | Use |
+|-------|--------------|-----|
+| `SurfaceOverlay` | dark `#1C1C1C` / light pair | Overlay background |
+| `SurfaceRaised` | raised panel | Settings panels |
+| `SurfaceSunken` | list wells in **settings** only | Settings cards / fields — **not** launcher results |
+| `BorderSubtle` | hairline | Borders |
+| `TextPrimary` / `TextSecondary` | high / muted | Input, titles / subtitles |
+| `Accent` | cool single accent | Mode, focus, primary CTA |
+| `Selection` | accent-tinted wash | Selected row |
+| `Hover` | theme-aware wash | Unselected row hover |
+| `TextOnAccent` | white | Primary button label |
+| `OverlayRadius` | 14 | Overlay + clip |
+| `ControlRadius` | 8 | Rows, buttons, inner chrome |
+| `FontInput` / `FontTitle` / `FontSubtitle` | 18 / 14 / 12 | Type ramp |
+| `ResultRowMinHeight` | 44 | Result row |
+| `OverlayWidth` | 600 default | Fixed; do not grow with path length |
+| Spacing rhythm | 4 / 8 / 12 / 16 | Margins & gaps |
 
-Light theme is optional later; do not fork layouts when adding it — swap tokens only.
+Light / system themes swap colors only — do not fork layouts.
 
 ## Scrolling rules
 
-1. `ScrollViewer.HorizontalScrollBarVisibility = Disabled` on results and settings forms.
+1. Horizontal scroll **disabled** on results and settings forms.
 2. Long `Subtitle` / paths: `TextTrimming = CharacterEllipsis`; full string in `ToolTip`.
-3. Prefer custom thin vertical scrollbar or `ScrollBar` style; avoid chunky classic bars if easy.
+3. Prefer thin vertical scrollbar (`ThemedScrollBars`) or hide-until-hover.
 4. Never increase window width to avoid ellipsis.
 
 ## Result model evolution (Abstractions)
@@ -96,39 +101,39 @@ Additive fields to consider (only when a real UI needs them):
 
 Do not put WPF `ImageSource` into Abstractions.
 
-## Settings IA (target)
+## Settings IA
 
 ```text
-[ Index ] [ General ] [ Shortcuts ]     ← tabs or nav list
+[ Index ] [ General ] [ Shortcuts ]     ← tabs
   Index roots …
   Excludes …
   Extensions …
   [Save & rebuild]  [Close]
 ```
 
-Short-term acceptable: keep one page but visually group with spacing + section headers that match overlay typography (not stock gray GroupBox).
+Craft bar: same type/spacing/button language as overlay; section headers not stock gray GroupBox.
 
 ## Tray asset checklist
 
 - Source SVG/vector in `assets/` (or `src/WinBox.Host/Assets/`)
 - Export `.ico` with 16, 20, 24, 32 (and 256 if packaging)
 - Monochrome-friendly silhouette; accent optional at 32+
-- Load from resource, not `Graphics.DrawString`
+- Load from resource (`TrayIconFactory`), not `Graphics.DrawString`
 
 ## Technical route (WPF Host)
 
-Stay on **WPF + WinForms NotifyIcon** for stage 1 (already shipping).
+Stay on **WPF + WinForms NotifyIcon** for craft stage.
 
-Recommended incremental path:
+Recommended craft path (pick one theme per PR):
 
-1. **Tokens + result DataTemplate** (fixes concat string + selection + ellipsis)
-2. **Clip + radius + optional drop shadow / Mica** (`DwmSetWindowAttribute`)
-3. **Drag reposition + persist** (JSON beside index options or `%AppData%/WinBox/ui.json`)
-4. **Footer hints + empty states**
-5. **Tray `.ico` + settings visual pass**
-6. Only then: plugin-authored accessory fields
+1. **Scanability** — match highlight; optional accessory column; tighter glyph alignment
+2. **Teaching chrome** — dynamic footer by context; mode exit hint
+3. **Empty/recents** — empty-query useful defaults (recents/actions) without clutter
+4. **Settings craft** — control templates, spacing rhythm, list rows matching overlay density
+5. **Feedback** — activation/status microcopy; reduced-motion path
+6. Only with Abstractions need: `IconKey` / `Accessory` / `Group`
 
-Avoid rewriting in WinUI 3 mid-flight unless packaging strategy changes.
+Avoid rewriting in WinUI 3 or adopting Wpf.Ui mid-flight unless packaging strategy changes.
 
 ## Manual QA script
 
@@ -140,18 +145,33 @@ make run
 4. Mode prefix (if any) → Backspace at start exits mode
 5. Tray → Open launcher / Settings / Quit
 6. Settings → edit root → Save & rebuild → status updates; Close
-7. Multi-monitor (if available): summon on active screen’s work area
+7. Theme dark/light/system → overlay + settings stay coherent
+8. Multi-monitor (if available): summon on active screen’s work area
 ```
 
-## Known gap backlog (status)
+## Stage-2 craft backlog (status)
 
-Ordered for product feel vs effort:
+Ordered for friendliness vs effort (re-audit after each slice):
 
-1. ~~Result row template + kill horizontal scroll (P0)~~ — done
-2. ~~Overlay corner radius + selection styling (P1)~~ — done
-3. ~~Position drag + persist (P1)~~ — done
-4. ~~Empty / no-result + footer shortcut hints (P1)~~ — done
-5. ~~Tray multi-size ICO (P2)~~ — done (`Assets/winbox.ico` + `TrayIconFactory`; regen via `tools/GenTrayIcon`)
-6. ~~Settings section visual + button styling (P2)~~ — done (Index / General / Shortcuts tabs)
-7. ~~Mica / shadow / motion (P2–P3)~~ — done (overlay shadow + fade; settings DWM Mica/round when available)
-8. ~~Theme preference (P3)~~ — done (dark / light / system in General + `ui-options.json`)
+1. ~~**Theme craft (light/dark)** (P1)~~ — refined tokens, hover, shadow, empty/idle copy, settings rebind
+2. ~~**Settings panel craft** (P1)~~ — path list cards, underline tabs, padding rhythm, card/footer shadows
+2b. ~~**Settings density + tray chrome** (P1)~~ — content-sized lists, custom combo/slider, window icon, themed tray menu + mark
+2c. ~~**Tray menu + settings flatten** (P1)~~ — rounded/centered tray menu, circular tray mark, flat settings (no list cards), filled slider
+3. **Result match highlighting** (P2) — bold/accent the matched substring in title
+4. **Row accessory hints** (P2) — right-aligned action/key hint without widening window
+5. **Empty-query recents** (P2) — optional recent/actions list beyond idle hint
+6. **Dynamic footer** (P2) — ~~basic context footer done~~; richer per-action accessories still open
+7. **Contrast / focus ring pass** (P2) — deepen keyboard focus visuals beyond caret accent
+8. **Icon fidelity** (P2) — richer file/app glyphs via additive `IconKey` when needed
+9. **Reduced motion** (P3) — skip fade when OS requests reduced motion
+
+Stage-1 checklist (historical, done):
+
+1. ~~Result row template + kill horizontal scroll~~
+2. ~~Overlay corner radius + selection styling~~
+3. ~~Position drag + persist~~
+4. ~~Empty / no-result + footer shortcut hints~~
+5. ~~Tray multi-size ICO~~
+6. ~~Settings section visual + button styling~~
+7. ~~Mica / shadow / motion~~
+8. ~~Theme preference~~

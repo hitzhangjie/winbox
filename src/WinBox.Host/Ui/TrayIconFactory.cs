@@ -99,29 +99,40 @@ public static class TrayIconFactory
         var bmp = new Bitmap(size, size, PixelFormat.Format32bppArgb);
         using var g = Graphics.FromImage(bmp);
         g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
         g.Clear(Color.Transparent);
 
-        var pad = Math.Max(1f, size * 0.06f);
-        var radius = Math.Max(2f, size * 0.18f);
-        using (var tile = new SolidBrush(Color.FromArgb(255, 0x1C, 0x1C, 0x1C)))
-        using (var path = RoundedRect(pad, pad, size - pad * 2, size - pad * 2, radius))
+        // Circular badge reads cleaner at 16px than a rounded square.
+        var pad = Math.Max(0.75f, size * 0.06f);
+        var dia = size - (pad * 2);
+        using (var tile = new SolidBrush(Color.FromArgb(255, 0x2A, 0x6F, 0xB5)))
         {
-            g.FillPath(tile, path);
+            g.FillEllipse(tile, pad, pad, dia, dia);
         }
 
-        var penWidth = Math.Max(1.2f, size * 0.09f);
-        using var accent = new Pen(Color.FromArgb(255, 0x8A, 0xC7, 0xFF), penWidth);
-        accent.StartCap = LineCap.Round;
-        accent.EndCap = LineCap.Round;
+        // Soft inner highlight for depth at larger sizes.
+        if (size >= 24)
+        {
+            using var shine = new SolidBrush(Color.FromArgb(36, 255, 255, 255));
+            g.FillEllipse(shine, pad + dia * 0.14f, pad + dia * 0.10f, dia * 0.55f, dia * 0.38f);
+        }
 
-        var lens = size * 0.42f;
-        var lensLeft = size * 0.22f;
-        var lensTop = size * 0.20f;
-        g.DrawEllipse(accent, lensLeft, lensTop, lens, lens);
+        var stroke = Math.Max(1.25f, size * 0.10f);
+        using var glass = new Pen(Color.FromArgb(255, 0xF7, 0xFA, 0xFF), stroke)
+        {
+            StartCap = LineCap.Round,
+            EndCap = LineCap.Round,
+        };
 
-        var handleStart = lensLeft + lens * 0.72f;
-        var handleEnd = size * 0.78f;
-        g.DrawLine(accent, handleStart, handleStart, handleEnd, handleEnd);
+        var lens = size * 0.38f;
+        var lensLeft = size * 0.26f;
+        var lensTop = size * 0.24f;
+        g.DrawEllipse(glass, lensLeft, lensTop, lens, lens);
+
+        var handleStartX = lensLeft + lens * 0.72f;
+        var handleStartY = lensTop + lens * 0.72f;
+        var handleEnd = size * 0.76f;
+        g.DrawLine(glass, handleStartX, handleStartY, handleEnd, handleEnd);
         return bmp;
     }
 
@@ -169,17 +180,5 @@ public static class TrayIconFactory
 
         // AND mask left zeroed (alpha channel in XOR carries transparency).
         return buffer;
-    }
-
-    private static GraphicsPath RoundedRect(float x, float y, float w, float h, float r)
-    {
-        var path = new GraphicsPath();
-        var d = r * 2;
-        path.AddArc(x, y, d, d, 180, 90);
-        path.AddArc(x + w - d, y, d, d, 270, 90);
-        path.AddArc(x + w - d, y + h - d, d, d, 0, 90);
-        path.AddArc(x, y + h - d, d, d, 90, 90);
-        path.CloseFigure();
-        return path;
     }
 }

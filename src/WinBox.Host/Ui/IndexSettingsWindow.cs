@@ -9,7 +9,7 @@ using WinBox.Search.Index;
 namespace WinBox.Host.Ui;
 
 /// <summary>
-/// Host settings: Index scope, General (theme), Shortcuts reference.
+/// Host settings: Index scope, Appearance (theme), Shortcuts reference.
 /// </summary>
 internal sealed class IndexSettingsWindow : Window
 {
@@ -37,6 +37,7 @@ internal sealed class IndexSettingsWindow : Window
     private readonly TextBlock _statusText;
     private readonly Button _saveButton;
     private readonly TabControl _tabs;
+    private readonly Border _footerBar;
     private bool _loadingAppearance;
 
     public IndexSettingsWindow(
@@ -50,30 +51,45 @@ internal sealed class IndexSettingsWindow : Window
         _uiStore = uiStore ?? throw new ArgumentNullException(nameof(uiStore));
 
         Title = "WinBox — Settings";
-        Width = 640;
+        Width = 660;
         Height = 720;
-        MinWidth = 520;
+        MinWidth = 540;
         MinHeight = 520;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Background = WinBoxTheme.SurfaceRaisedBrush;
         Foreground = WinBoxTheme.TextPrimaryBrush;
         FontFamily = WinBoxTheme.UiFont;
+        FocusVisualStyle = null;
+        WindowIconFactory.Apply(this);
 
         SourceInitialized += (_, _) =>
         {
-            var dark = WinBoxTheme.Resolve(WinBoxTheme.CurrentKind).TextPrimary.R > 0x80;
-            WindowEffects.TryEnableSystemChrome(this, dark);
+            WindowEffects.TryEnableSystemChrome(this, WinBoxTheme.IsDarkEffective);
         };
 
-        var root = new DockPanel { Margin = new Thickness(20) };
+        var root = new DockPanel { Margin = new Thickness(WinBoxTheme.SettingsPageMargin) };
 
+        _footerBar = new Border
+        {
+            Tag = SettingsChrome.FieldCardTag,
+            Background = Brushes.Transparent,
+            BorderBrush = WinBoxTheme.BorderSubtleBrush,
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            CornerRadius = new CornerRadius(0),
+            Padding = new Thickness(0, 14, 0, 0),
+            Margin = new Thickness(0, 12, 0, 0),
+            Effect = null,
+        };
+        DockPanel.SetDock(_footerBar, Dock.Bottom);
+
+        var footerInner = new DockPanel();
         var buttons = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 16, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
         };
-        DockPanel.SetDock(buttons, Dock.Bottom);
+        DockPanel.SetDock(buttons, Dock.Right);
 
         _saveButton = CreateButton("Save & rebuild", primary: true, minWidth: 128);
         _saveButton.Click += async (_, _) => await SaveAndRebuildAsync().ConfigureAwait(true);
@@ -84,81 +100,80 @@ internal sealed class IndexSettingsWindow : Window
 
         buttons.Children.Add(_saveButton);
         buttons.Children.Add(closeButton);
-        root.Children.Add(buttons);
+        footerInner.Children.Add(buttons);
 
         _statusText = new TextBlock
         {
-            Margin = new Thickness(0, 10, 0, 0),
             Foreground = WinBoxTheme.TextSecondaryBrush,
             TextWrapping = TextWrapping.Wrap,
             FontSize = WinBoxTheme.FontSubtitle,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 16, 0),
+            Tag = "hint",
         };
-        DockPanel.SetDock(_statusText, Dock.Bottom);
-        root.Children.Add(_statusText);
+        footerInner.Children.Add(_statusText);
+        _footerBar.Child = footerInner;
+        root.Children.Add(_footerBar);
 
-        _tabs = new TabControl
-        {
-            Background = WinBoxTheme.SurfaceRaisedBrush,
-            BorderBrush = WinBoxTheme.BorderSubtleBrush,
-            Padding = new Thickness(0, 8, 0, 0),
-        };
+        _tabs = new TabControl();
+        SettingsChrome.ApplyTabControl(_tabs);
 
         var indexForm = new StackPanel();
-        indexForm.Children.Add(SectionLabel("Index roots"));
+        indexForm.Children.Add(SectionLabel("Index roots", first: true));
         indexForm.Children.Add(Hint("Folders to scan. Start broad; tighten with excludes below."));
-        _rootsList = PathListBox();
-        indexForm.Children.Add(_rootsList);
+        _rootsList = SettingsChrome.CreatePathList(emptyRows: 1);
+        indexForm.Children.Add(SettingsChrome.WrapFlat(_rootsList));
         indexForm.Children.Add(PathListButtons(
             add: () => AddFolderToList(_rootsList, "Choose a folder to index"),
             remove: () => RemoveSelected(_rootsList)));
 
         indexForm.Children.Add(SectionLabel("Exclude roots"));
         indexForm.Children.Add(Hint("Skip these folders (and everything under them), even if inside an index root."));
-        _excludeRootsList = PathListBox(height: 88);
-        indexForm.Children.Add(_excludeRootsList);
+        _excludeRootsList = SettingsChrome.CreatePathList(emptyRows: 1);
+        indexForm.Children.Add(SettingsChrome.WrapFlat(_excludeRootsList));
         indexForm.Children.Add(PathListButtons(
             add: () => AddFolderToList(_excludeRootsList, "Choose a folder to exclude"),
             remove: () => RemoveSelected(_excludeRootsList)));
 
         indexForm.Children.Add(SectionLabel("Include extensions"));
         indexForm.Children.Add(Hint("Empty = all types. Comma-separated, e.g. md, go, txt"));
-        _includeExtensionsBox = FieldBox();
-        indexForm.Children.Add(_includeExtensionsBox);
+        _includeExtensionsBox = SettingsChrome.CreateField();
+        indexForm.Children.Add(SettingsChrome.WrapFlat(_includeExtensionsBox));
 
         indexForm.Children.Add(SectionLabel("Exclude extensions"));
         indexForm.Children.Add(Hint("Always skipped. Wins over include list. e.g. exe, dll, obj"));
-        _excludeExtensionsBox = FieldBox();
-        indexForm.Children.Add(_excludeExtensionsBox);
+        _excludeExtensionsBox = SettingsChrome.CreateField();
+        indexForm.Children.Add(SettingsChrome.WrapFlat(_excludeExtensionsBox));
 
         indexForm.Children.Add(SectionLabel("Exclude path patterns"));
         indexForm.Children.Add(Hint("Skip when any path segment equals the name (one per line). e.g. node_modules, .git"));
-        _excludePatternsBox = FieldBox(height: 96, acceptReturn: true);
-        indexForm.Children.Add(_excludePatternsBox);
+        _excludePatternsBox = SettingsChrome.CreateField(height: 88, acceptReturn: true);
+        indexForm.Children.Add(SettingsChrome.WrapFlat(_excludePatternsBox));
 
         _recursiveBox = new CheckBox
         {
             Content = "Scan subfolders recursively",
-            Margin = new Thickness(0, 16, 0, 0),
+            Margin = new Thickness(2, WinBoxTheme.SettingsSectionGap, 0, 4),
             Foreground = WinBoxTheme.TextPrimaryBrush,
             IsChecked = true,
+            FontFamily = WinBoxTheme.UiFont,
+            FocusVisualStyle = null,
         };
         indexForm.Children.Add(_recursiveBox);
 
         _tabs.Items.Add(CreateTab("Index", WrapScroll(indexForm)));
 
         var appearance = new StackPanel();
-        appearance.Children.Add(SectionLabel("Theme"));
+        appearance.Children.Add(SectionLabel("Theme", first: true));
         appearance.Children.Add(Hint("Applies immediately to the launcher and this window."));
         _themeBox = new ComboBox
         {
-            Margin = new Thickness(0, 4, 0, 12),
-            MinWidth = 220,
+            Margin = new Thickness(0, 2, 0, 8),
+            MinWidth = 240,
             HorizontalAlignment = HorizontalAlignment.Left,
-            Background = WinBoxTheme.SurfaceSunkenBrush,
-            Foreground = WinBoxTheme.TextPrimaryBrush,
-            BorderBrush = WinBoxTheme.BorderSubtleBrush,
-            Padding = new Thickness(8, 6, 8, 6),
+            FontFamily = WinBoxTheme.UiFont,
         };
+        SettingsChrome.StyleCombo(_themeBox);
         _themeBox.Items.Add(new ComboBoxItem { Content = "Dark", Tag = UiThemeKind.Dark });
         _themeBox.Items.Add(new ComboBoxItem { Content = "Light", Tag = UiThemeKind.Light });
         _themeBox.Items.Add(new ComboBoxItem { Content = "System", Tag = UiThemeKind.System });
@@ -178,14 +193,12 @@ internal sealed class IndexSettingsWindow : Window
         (_scrollWidthSlider, _scrollWidthValue) = LabeledSlider(appearance, "Thickness", 4, 16, 1);
         _scrollModeBox = new ComboBox
         {
-            Margin = new Thickness(0, 4, 0, 8),
-            MinWidth = 220,
+            Margin = new Thickness(0, 8, 0, 4),
+            MinWidth = 240,
             HorizontalAlignment = HorizontalAlignment.Left,
-            Background = WinBoxTheme.SurfaceSunkenBrush,
-            Foreground = WinBoxTheme.TextPrimaryBrush,
-            BorderBrush = WinBoxTheme.BorderSubtleBrush,
-            Padding = new Thickness(8, 6, 8, 6),
+            FontFamily = WinBoxTheme.UiFont,
         };
+        SettingsChrome.StyleCombo(_scrollModeBox);
         _scrollModeBox.Items.Add(new ComboBoxItem { Content = "Auto (only when needed)", Tag = ScrollBarShowMode.Auto });
         _scrollModeBox.Items.Add(new ComboBoxItem { Content = "Hidden", Tag = ScrollBarShowMode.Hidden });
         _scrollModeBox.Items.Add(new ComboBoxItem { Content = "Always", Tag = ScrollBarShowMode.Always });
@@ -196,17 +209,19 @@ internal sealed class IndexSettingsWindow : Window
         _tabs.Items.Add(CreateTab("Appearance", WrapScroll(appearance)));
 
         var shortcuts = new StackPanel();
-        shortcuts.Children.Add(SectionLabel("Launcher"));
-        shortcuts.Children.Add(ShortcutRow("Shift+Alt+U", "Open launcher"));
-        shortcuts.Children.Add(ShortcutRow("Esc", "Dismiss launcher"));
-        shortcuts.Children.Add(ShortcutRow("↑ / ↓", "Move selection"));
-        shortcuts.Children.Add(ShortcutRow("Enter", "Activate selected result"));
-        shortcuts.Children.Add(ShortcutRow("Alt+Enter", "Reveal path in Explorer"));
+        shortcuts.Children.Add(SectionLabel("Launcher", first: true));
+        shortcuts.Children.Add(ShortcutRows(
+            ("Shift+Alt+U", "Open launcher"),
+            ("Esc", "Dismiss launcher"),
+            ("↑ / ↓", "Move selection"),
+            ("Enter", "Activate selected result"),
+            ("Alt+Enter", "Reveal path in Explorer")));
         shortcuts.Children.Add(SectionLabel("Tray"));
-        shortcuts.Children.Add(ShortcutRow("Double-click", "Open launcher"));
-        shortcuts.Children.Add(ShortcutRow("Right-click", "Settings / Quit"));
+        shortcuts.Children.Add(ShortcutRows(
+            ("Double-click", "Open launcher"),
+            ("Right-click", "Settings / Quit")));
         shortcuts.Children.Add(Hint("Custom hotkeys are not editable yet — tracked for a later release."));
-        _tabs.Items.Add(CreateTab("Shortcuts", shortcuts));
+        _tabs.Items.Add(CreateTab("Shortcuts", WrapScroll(shortcuts)));
 
         _tabs.SelectionChanged += (_, _) =>
         {
@@ -246,15 +261,17 @@ internal sealed class IndexSettingsWindow : Window
         {
             Text = label,
             Foreground = WinBoxTheme.TextPrimaryBrush,
-            Margin = new Thickness(0, 4, 0, 2),
+            Margin = new Thickness(0, 10, 0, 6),
+            Tag = "body",
         });
-        var row = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
+        var row = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
         var value = new TextBlock
         {
-            Width = 40,
+            Width = 44,
             TextAlignment = TextAlignment.Right,
             Foreground = WinBoxTheme.TextSecondaryBrush,
             VerticalAlignment = VerticalAlignment.Center,
+            Tag = "hint",
         };
         DockPanel.SetDock(value, Dock.Right);
         var slider = new Slider
@@ -264,7 +281,9 @@ internal sealed class IndexSettingsWindow : Window
             TickFrequency = tick,
             IsSnapToTickEnabled = tick >= 1,
             VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 10, 0),
         };
+        SettingsChrome.StyleSlider(slider);
         slider.ValueChanged += (_, _) =>
         {
             value.Text = Math.Round(slider.Value).ToString();
@@ -359,10 +378,8 @@ internal sealed class IndexSettingsWindow : Window
         {
             _uiStore.Save(options);
             UiLayout.Apply(options);
-            var dark = WinBoxTheme.Resolve(WinBoxTheme.ParseTheme(options.Theme)).TextPrimary.R > 0x80;
-            WindowEffects.TryEnableSystemChrome(this, dark);
-            Background = WinBoxTheme.SurfaceRaisedBrush;
-            Foreground = WinBoxTheme.TextPrimaryBrush;
+            WindowEffects.TryEnableSystemChrome(this, WinBoxTheme.IsDarkEffective);
+            ApplyThemeChrome();
             UpdateStatus("Appearance saved.");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -373,12 +390,71 @@ internal sealed class IndexSettingsWindow : Window
 
     private void OnHostThemeChanged()
     {
-        Dispatcher.Invoke(() =>
+        Dispatcher.Invoke(ApplyThemeChrome);
+    }
+
+    private void ApplyThemeChrome()
+    {
+        Background = WinBoxTheme.SurfaceRaisedBrush;
+        Foreground = WinBoxTheme.TextPrimaryBrush;
+        _statusText.Foreground = WinBoxTheme.TextSecondaryBrush;
+        _recursiveBox.Foreground = WinBoxTheme.TextPrimaryBrush;
+
+        SettingsChrome.ApplyTabControl(_tabs);
+        SettingsChrome.StyleEmbeddedField(_includeExtensionsBox);
+        SettingsChrome.StyleEmbeddedField(_excludeExtensionsBox);
+        SettingsChrome.StyleEmbeddedField(_excludePatternsBox);
+        SettingsChrome.StyleEmbeddedList(_rootsList);
+        SettingsChrome.StyleEmbeddedList(_excludeRootsList);
+        SettingsChrome.StyleCombo(_themeBox);
+        SettingsChrome.StyleCombo(_scrollModeBox);
+        TintComboItems(_themeBox);
+        TintComboItems(_scrollModeBox);
+        SettingsChrome.StyleSlider(_widthSlider);
+        SettingsChrome.StyleSlider(_resultsHeightSlider);
+        SettingsChrome.StyleSlider(_fontInputSlider);
+        SettingsChrome.StyleSlider(_fontTitleSlider);
+        SettingsChrome.StyleSlider(_scrollWidthSlider);
+        SettingsChrome.RetintCards(this);
+        _footerBar.Background = Brushes.Transparent;
+        _footerBar.BorderBrush = WinBoxTheme.BorderSubtleBrush;
+        _footerBar.Effect = null;
+
+        if (_saveButton.Parent is Panel buttonRow)
         {
-            Background = WinBoxTheme.SurfaceRaisedBrush;
-            Foreground = WinBoxTheme.TextPrimaryBrush;
-            _statusText.Foreground = WinBoxTheme.TextSecondaryBrush;
-        });
+            foreach (var child in buttonRow.Children.OfType<Button>())
+            {
+                RestyleButton(child, primary: ReferenceEquals(child, _saveButton));
+            }
+        }
+
+        SettingsChrome.RetintText(this);
+        RefreshScrollBars(this);
+    }
+
+    private static void TintComboItems(ComboBox box)
+    {
+        foreach (var item in box.Items.OfType<ComboBoxItem>())
+        {
+            item.Foreground = WinBoxTheme.TextPrimaryBrush;
+            item.Background = Brushes.Transparent;
+            item.FontFamily = WinBoxTheme.UiFont;
+        }
+    }
+
+    private static void RefreshScrollBars(DependencyObject root)
+    {
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is ScrollViewer scroll)
+            {
+                ThemedScrollBars.Apply(scroll);
+            }
+
+            RefreshScrollBars(child);
+        }
     }
 
     private void LoadFromOptions(IndexOptions options)
@@ -427,6 +503,7 @@ internal sealed class IndexSettingsWindow : Window
         }
 
         list.Items.Add(path);
+        SettingsChrome.FitPathList(list);
     }
 
     private static void RemoveSelected(ListBox list)
@@ -434,6 +511,7 @@ internal sealed class IndexSettingsWindow : Window
         if (list.SelectedItem is string selected)
         {
             list.Items.Remove(selected);
+            SettingsChrome.FitPathList(list);
         }
     }
 
@@ -444,6 +522,8 @@ internal sealed class IndexSettingsWindow : Window
         {
             list.Items.Add(value);
         }
+
+        SettingsChrome.FitPathList(list);
     }
 
     private async Task SaveAndRebuildAsync()
@@ -471,7 +551,7 @@ internal sealed class IndexSettingsWindow : Window
     {
         Header = header,
         Content = content,
-        Padding = new Thickness(12, 6, 12, 6),
+        FocusVisualStyle = null,
     };
 
     private static ScrollViewer WrapScroll(UIElement content)
@@ -481,21 +561,36 @@ internal sealed class IndexSettingsWindow : Window
             Content = content,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Padding = new Thickness(0),
+            FocusVisualStyle = null,
         };
         ThemedScrollBars.Apply(scroll);
         return scroll;
     }
 
-    private static UIElement ShortcutRow(string keys, string description)
+    private static UIElement ShortcutRows(params (string Keys, string Description)[] rows)
     {
-        var row = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
+        var stack = new StackPanel { Margin = new Thickness(0, 2, 0, 4) };
+        for (var i = 0; i < rows.Length; i++)
+        {
+            var (keys, description) = rows[i];
+            stack.Children.Add(ShortcutRow(keys, description, last: i == rows.Length - 1));
+        }
+
+        return stack;
+    }
+
+    private static UIElement ShortcutRow(string keys, string description, bool last = false)
+    {
+        var row = new DockPanel { Margin = new Thickness(0, 4, 0, last ? 4 : 8) };
         var key = new TextBlock
         {
             Text = keys,
-            Width = 120,
+            Width = 128,
             FontWeight = FontWeights.SemiBold,
             Foreground = WinBoxTheme.AccentBrush,
             VerticalAlignment = VerticalAlignment.Center,
+            Tag = "shortcut-key",
         };
         DockPanel.SetDock(key, Dock.Left);
         row.Children.Add(key);
@@ -505,17 +600,19 @@ internal sealed class IndexSettingsWindow : Window
             Foreground = WinBoxTheme.TextPrimaryBrush,
             VerticalAlignment = VerticalAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
+            Tag = "body",
         });
         return row;
     }
 
-    private static TextBlock SectionLabel(string text) => new()
+    private static TextBlock SectionLabel(string text, bool first = false) => new()
     {
         Text = text,
         FontWeight = FontWeights.SemiBold,
         FontSize = WinBoxTheme.FontTitle,
-        Margin = new Thickness(0, 12, 0, 2),
+        Margin = new Thickness(0, first ? 0 : WinBoxTheme.SettingsSectionGap, 0, 4),
         Foreground = WinBoxTheme.TextPrimaryBrush,
+        Tag = "section",
     };
 
     private static TextBlock Hint(string text) => new()
@@ -523,43 +620,17 @@ internal sealed class IndexSettingsWindow : Window
         Text = text,
         FontSize = WinBoxTheme.FontSubtitle,
         Foreground = WinBoxTheme.TextSecondaryBrush,
-        Margin = new Thickness(0, 0, 0, 6),
+        Margin = new Thickness(0, 0, 0, 8),
         TextWrapping = TextWrapping.Wrap,
+        Tag = "hint",
     };
-
-    private static ListBox PathListBox(double height = 100)
-    {
-        var list = new ListBox
-        {
-            Height = height,
-            Background = WinBoxTheme.SurfaceSunkenBrush,
-            Foreground = WinBoxTheme.TextPrimaryBrush,
-            BorderBrush = WinBoxTheme.BorderSubtleBrush,
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(4),
-        };
-        ScrollViewer.SetHorizontalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
-        ScrollViewer.SetVerticalScrollBarVisibility(list, ScrollBarVisibility.Auto);
-        ThemedScrollBars.Apply(list);
-
-        var template = new DataTemplate(typeof(string));
-        var textFactory = new FrameworkElementFactory(typeof(TextBlock));
-        textFactory.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding());
-        textFactory.SetBinding(FrameworkElement.ToolTipProperty, new System.Windows.Data.Binding());
-        textFactory.SetValue(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
-        textFactory.SetValue(TextBlock.TextWrappingProperty, TextWrapping.NoWrap);
-        textFactory.SetValue(TextBlock.PaddingProperty, new Thickness(6, 3, 6, 3));
-        template.VisualTree = textFactory;
-        list.ItemTemplate = template;
-        return list;
-    }
 
     private static StackPanel PathListButtons(Action add, Action remove)
     {
         var row = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 8, 0, 4),
+            Margin = new Thickness(0, 10, 0, 0),
         };
         var addButton = CreateButton("Add folder…", primary: false);
         addButton.Click += (_, _) => add();
@@ -569,31 +640,6 @@ internal sealed class IndexSettingsWindow : Window
         row.Children.Add(addButton);
         row.Children.Add(removeButton);
         return row;
-    }
-
-    private static TextBox FieldBox(double? height = null, bool acceptReturn = false)
-    {
-        var box = new TextBox
-        {
-            AcceptsReturn = acceptReturn,
-            TextWrapping = acceptReturn ? TextWrapping.Wrap : TextWrapping.NoWrap,
-            VerticalScrollBarVisibility = acceptReturn ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Background = WinBoxTheme.SurfaceSunkenBrush,
-            Foreground = WinBoxTheme.TextPrimaryBrush,
-            BorderBrush = WinBoxTheme.BorderSubtleBrush,
-            CaretBrush = WinBoxTheme.TextPrimaryBrush,
-            Padding = new Thickness(10, 8, 10, 8),
-            Margin = new Thickness(0, 0, 0, 4),
-            FontFamily = WinBoxTheme.UiFont,
-        };
-
-        if (height is not null)
-        {
-            box.Height = height.Value;
-        }
-
-        return box;
     }
 
     private static Button CreateButton(string content, bool primary, double minWidth = 0)
@@ -607,12 +653,18 @@ internal sealed class IndexSettingsWindow : Window
             FontFamily = WinBoxTheme.UiFont,
             Cursor = System.Windows.Input.Cursors.Hand,
             BorderThickness = new Thickness(1),
+            FocusVisualStyle = null,
         };
+        RestyleButton(button, primary);
+        return button;
+    }
 
+    private static void RestyleButton(Button button, bool primary)
+    {
         if (primary)
         {
             button.Background = WinBoxTheme.PrimaryButtonBrush;
-            button.Foreground = Brushes.White;
+            button.Foreground = WinBoxTheme.TextOnAccentBrush;
             button.BorderBrush = WinBoxTheme.PrimaryButtonBrush;
         }
         else
@@ -622,6 +674,52 @@ internal sealed class IndexSettingsWindow : Window
             button.BorderBrush = WinBoxTheme.BorderSubtleBrush;
         }
 
-        return button;
+        button.Template = CreateRoundedButtonTemplate();
+    }
+
+    private static ControlTemplate CreateRoundedButtonTemplate()
+    {
+        var template = new ControlTemplate(typeof(Button));
+        var border = new FrameworkElementFactory(typeof(Border));
+        border.Name = "Bd";
+        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(WinBoxTheme.ControlRadius));
+        border.SetValue(Border.SnapsToDevicePixelsProperty, true);
+        border.SetValue(Border.PaddingProperty, new TemplateBindingExtension(Button.PaddingProperty));
+        border.SetBinding(
+            Border.BackgroundProperty,
+            new System.Windows.Data.Binding(nameof(Button.Background))
+            {
+                RelativeSource = new System.Windows.Data.RelativeSource(
+                    System.Windows.Data.RelativeSourceMode.TemplatedParent),
+            });
+        border.SetBinding(
+            Border.BorderBrushProperty,
+            new System.Windows.Data.Binding(nameof(Button.BorderBrush))
+            {
+                RelativeSource = new System.Windows.Data.RelativeSource(
+                    System.Windows.Data.RelativeSourceMode.TemplatedParent),
+            });
+        border.SetBinding(
+            Border.BorderThicknessProperty,
+            new System.Windows.Data.Binding(nameof(Button.BorderThickness))
+            {
+                RelativeSource = new System.Windows.Data.RelativeSource(
+                    System.Windows.Data.RelativeSourceMode.TemplatedParent),
+            });
+
+        var presenter = new FrameworkElementFactory(typeof(ContentPresenter));
+        presenter.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+        presenter.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+        presenter.SetValue(ContentPresenter.RecognizesAccessKeyProperty, true);
+        border.AppendChild(presenter);
+        template.VisualTree = border;
+
+        var hover = new Trigger { Property = Button.IsMouseOverProperty, Value = true };
+        hover.Setters.Add(new Setter(Button.OpacityProperty, 0.92));
+        template.Triggers.Add(hover);
+        var pressed = new Trigger { Property = Button.IsPressedProperty, Value = true };
+        pressed.Setters.Add(new Setter(Button.OpacityProperty, 0.84));
+        template.Triggers.Add(pressed);
+        return template;
     }
 }

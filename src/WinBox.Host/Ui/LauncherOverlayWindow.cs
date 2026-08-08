@@ -21,10 +21,14 @@ internal sealed class LauncherOverlayWindow : Window
     private readonly TextBlock _modeLabel;
     private readonly TextBlock _modeSeparator;
     private readonly TextBox _queryBox;
+    private readonly TextBlock _placeholder;
     private readonly ListBox _results;
-    private readonly TextBlock _emptyText;
+    private readonly StackPanel _emptyPanel;
+    private readonly TextBlock _emptyTitle;
+    private readonly TextBlock _emptyDetail;
     private readonly TextBlock _footerText;
     private readonly Border _chrome;
+    private readonly Border _divider;
     private readonly DispatcherTimer _persistTimer;
     private UiOptions _uiOptions;
     private bool _syncingUi;
@@ -77,7 +81,7 @@ internal sealed class LauncherOverlayWindow : Window
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        var inputRow = new DockPanel { LastChildFill = true, Margin = new Thickness(14, 0, 14, 0) };
+        var inputRow = new DockPanel { LastChildFill = true, Margin = new Thickness(16, 0, 16, 0) };
 
         _modeLabel = new TextBlock
         {
@@ -102,6 +106,17 @@ internal sealed class LauncherOverlayWindow : Window
         inputRow.Children.Add(_modeLabel);
         inputRow.Children.Add(_modeSeparator);
 
+        var queryHost = new Grid();
+        _placeholder = new TextBlock
+        {
+            Text = LauncherChromeText.Placeholder,
+            FontSize = UiLayout.FontInput,
+            FontFamily = WinBoxTheme.UiFont,
+            Foreground = WinBoxTheme.TextSecondaryBrush,
+            VerticalAlignment = VerticalAlignment.Center,
+            IsHitTestVisible = false,
+            Opacity = 0.72,
+        };
         _queryBox = new TextBox
         {
             FontSize = UiLayout.FontInput,
@@ -109,11 +124,13 @@ internal sealed class LauncherOverlayWindow : Window
             Background = Brushes.Transparent,
             Foreground = WinBoxTheme.TextPrimaryBrush,
             BorderThickness = new Thickness(0),
-            CaretBrush = WinBoxTheme.TextPrimaryBrush,
+            CaretBrush = WinBoxTheme.AccentBrush,
             VerticalAlignment = VerticalAlignment.Center,
         };
         _queryBox.TextChanged += OnQueryTextChanged;
-        inputRow.Children.Add(_queryBox);
+        queryHost.Children.Add(_placeholder);
+        queryHost.Children.Add(_queryBox);
+        inputRow.Children.Add(queryHost);
         Grid.SetRow(inputRow, 0);
         root.Children.Add(inputRow);
 
@@ -123,10 +140,10 @@ internal sealed class LauncherOverlayWindow : Window
             Visibility = Visibility.Collapsed,
             MaxHeight = UiLayout.ResultsMaxHeight,
             BorderThickness = new Thickness(0),
-            Background = WinBoxTheme.SurfaceSunkenBrush,
+            Background = Brushes.Transparent,
             Foreground = WinBoxTheme.TextPrimaryBrush,
             FontFamily = WinBoxTheme.UiFont,
-            Padding = new Thickness(4, 4, 4, 4),
+            Padding = new Thickness(6, 6, 6, 6),
             ItemTemplate = ResultRowView.CreateListTemplate(),
             ItemContainerStyle = CreateResultItemStyle(),
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
@@ -145,6 +162,7 @@ internal sealed class LauncherOverlayWindow : Window
             }
 
             _state.SetSelectedIndex(_results.SelectedIndex);
+            RefreshFooter();
         };
         _results.MouseDoubleClick += async (_, _) =>
         {
@@ -152,49 +170,60 @@ internal sealed class LauncherOverlayWindow : Window
             DismissOverlay();
         };
 
-        _emptyText = new TextBlock
+        _emptyTitle = new TextBlock
         {
-            Text = "No results",
             FontSize = UiLayout.FontTitle,
+            FontWeight = FontWeights.SemiBold,
+            FontFamily = WinBoxTheme.UiFont,
+            Foreground = WinBoxTheme.TextPrimaryBrush,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        _emptyDetail = new TextBlock
+        {
+            FontSize = UiLayout.FontSubtitle,
+            FontFamily = WinBoxTheme.UiFont,
             Foreground = WinBoxTheme.TextSecondaryBrush,
-            Margin = new Thickness(18, 14, 18, 14),
+            Margin = new Thickness(0, 4, 0, 0),
+            TextWrapping = TextWrapping.Wrap,
+        };
+        _emptyPanel = new StackPanel
+        {
+            Margin = new Thickness(18, 16, 18, 16),
             Visibility = Visibility.Collapsed,
         };
+        _emptyPanel.Children.Add(_emptyTitle);
+        _emptyPanel.Children.Add(_emptyDetail);
 
         resultsHost.Children.Add(_results);
-        resultsHost.Children.Add(_emptyText);
+        resultsHost.Children.Add(_emptyPanel);
         Grid.SetRow(resultsHost, 1);
         root.Children.Add(resultsHost);
 
         _footerText = new TextBlock
         {
-            Text = "Enter open  ·  Alt+Enter reveal  ·  Esc close  ·  drag to move",
+            Text = LauncherChromeText.FooterFor(null, hasResults: false),
             FontSize = UiLayout.FontFooter,
             Foreground = WinBoxTheme.TextSecondaryBrush,
-            Margin = new Thickness(14, 8, 14, 10),
+            Margin = new Thickness(16, 8, 16, 12),
             TextTrimming = TextTrimming.CharacterEllipsis,
+            Opacity = 0.9,
         };
         Grid.SetRow(_footerText, 2);
         root.Children.Add(_footerText);
 
         // Top hairline under the input when results/empty are shown.
-        var divider = new Border
+        _divider = new Border
         {
             Height = 1,
             Background = WinBoxTheme.BorderSubtleBrush,
             VerticalAlignment = VerticalAlignment.Top,
             Visibility = Visibility.Collapsed,
+            Opacity = 0.85,
         };
-        Grid.SetRow(divider, 1);
-        root.Children.Add(divider);
-        _results.IsVisibleChanged += (_, _) =>
-            divider.Visibility = _results.Visibility == Visibility.Visible || _emptyText.Visibility == Visibility.Visible
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-        _emptyText.IsVisibleChanged += (_, _) =>
-            divider.Visibility = _results.Visibility == Visibility.Visible || _emptyText.Visibility == Visibility.Visible
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+        Grid.SetRow(_divider, 1);
+        root.Children.Add(_divider);
+        _results.IsVisibleChanged += (_, _) => RefreshDivider();
+        _emptyPanel.IsVisibleChanged += (_, _) => RefreshDivider();
 
         _chrome.Child = root;
         Content = _chrome;
@@ -223,8 +252,10 @@ internal sealed class LauncherOverlayWindow : Window
         _modeLabel.FontSize = UiLayout.FontInput;
         _modeSeparator.FontSize = UiLayout.FontInput;
         _queryBox.FontSize = UiLayout.FontInput;
+        _placeholder.FontSize = UiLayout.FontInput;
         _results.MaxHeight = UiLayout.ResultsMaxHeight;
-        _emptyText.FontSize = UiLayout.FontTitle;
+        _emptyTitle.FontSize = UiLayout.FontTitle;
+        _emptyDetail.FontSize = UiLayout.FontSubtitle;
         _footerText.FontSize = UiLayout.FontFooter;
         ScrollViewer.SetVerticalScrollBarVisibility(_results, UiLayout.ToVisibility(UiLayout.ScrollBarMode));
         ThemedScrollBars.Apply(_results);
@@ -238,16 +269,21 @@ internal sealed class LauncherOverlayWindow : Window
         {
             _chrome.Background = WinBoxTheme.SurfaceOverlayBrush;
             _chrome.BorderBrush = WinBoxTheme.BorderSubtleBrush;
+            _chrome.Effect = WindowEffects.CreateOverlayShadow();
             _modeLabel.Foreground = WinBoxTheme.AccentBrush;
             _modeSeparator.Foreground = WinBoxTheme.TextSecondaryBrush;
             _queryBox.Foreground = WinBoxTheme.TextPrimaryBrush;
-            _queryBox.CaretBrush = WinBoxTheme.TextPrimaryBrush;
-            _results.Background = WinBoxTheme.SurfaceSunkenBrush;
+            _queryBox.CaretBrush = WinBoxTheme.AccentBrush;
+            _placeholder.Foreground = WinBoxTheme.TextSecondaryBrush;
+            _results.Background = Brushes.Transparent;
             _results.Foreground = WinBoxTheme.TextPrimaryBrush;
             _results.ItemContainerStyle = CreateResultItemStyle();
+            _results.ItemTemplate = ResultRowView.CreateListTemplate();
             ThemedScrollBars.Apply(_results);
-            _emptyText.Foreground = WinBoxTheme.TextSecondaryBrush;
+            _emptyTitle.Foreground = WinBoxTheme.TextPrimaryBrush;
+            _emptyDetail.Foreground = WinBoxTheme.TextSecondaryBrush;
             _footerText.Foreground = WinBoxTheme.TextSecondaryBrush;
+            _divider.Background = WinBoxTheme.BorderSubtleBrush;
             SyncFromState();
         });
     }
@@ -348,6 +384,10 @@ internal sealed class LauncherOverlayWindow : Window
 
     private void OnQueryTextChanged(object sender, TextChangedEventArgs e)
     {
+        _placeholder.Visibility = string.IsNullOrEmpty(_queryBox.Text)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
         if (_syncingUi)
         {
             return;
@@ -457,6 +497,9 @@ internal sealed class LauncherOverlayWindow : Window
 
             var hasQuery = !string.IsNullOrWhiteSpace(_state.Query);
             var hasResults = _state.Results.Count > 0;
+            _placeholder.Visibility = string.IsNullOrEmpty(_queryBox.Text)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
 
             _results.Items.Clear();
             if (hasResults)
@@ -467,7 +510,7 @@ internal sealed class LauncherOverlayWindow : Window
                 }
 
                 _results.Visibility = Visibility.Visible;
-                _emptyText.Visibility = Visibility.Collapsed;
+                _emptyPanel.Visibility = Visibility.Collapsed;
 
                 if (_state.SelectedIndex >= 0 && _state.SelectedIndex < _results.Items.Count)
                 {
@@ -478,18 +521,39 @@ internal sealed class LauncherOverlayWindow : Window
             else if (hasQuery)
             {
                 _results.Visibility = Visibility.Collapsed;
-                _emptyText.Visibility = Visibility.Visible;
+                _emptyTitle.Text = LauncherChromeText.NoResultsTitle(_state.Query);
+                _emptyDetail.Text = LauncherChromeText.NoResultsDetail;
+                _emptyPanel.Visibility = Visibility.Visible;
             }
             else
             {
                 _results.Visibility = Visibility.Collapsed;
-                _emptyText.Visibility = Visibility.Collapsed;
+                _emptyTitle.Text = LauncherChromeText.IdleHint;
+                _emptyDetail.Text = LauncherChromeText.IdleDetail;
+                _emptyPanel.Visibility = Visibility.Visible;
             }
+
+            RefreshFooter();
+            RefreshDivider();
         }
         finally
         {
             _syncingUi = false;
         }
+    }
+
+    private void RefreshFooter()
+    {
+        var hasResults = _state.Results.Count > 0;
+        var action = _state.SelectedItem?.Action;
+        _footerText.Text = LauncherChromeText.FooterFor(action, hasResults);
+    }
+
+    private void RefreshDivider()
+    {
+        _divider.Visibility = _results.Visibility == Visibility.Visible || _emptyPanel.Visibility == Visibility.Visible
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     private void ApplyPlacement()
@@ -581,12 +645,10 @@ internal sealed class LauncherOverlayWindow : Window
         selected.Setters.Add(new Setter(ListBoxItem.BackgroundProperty, WinBoxTheme.SelectionBrush));
         style.Triggers.Add(selected);
 
-        var hoverBrush = new SolidColorBrush(Color.FromArgb(0x40, 0x3A, 0x3A, 0x3A));
-        hoverBrush.Freeze();
         var hover = new MultiTrigger();
         hover.Conditions.Add(new Condition(ListBoxItem.IsMouseOverProperty, true));
         hover.Conditions.Add(new Condition(ListBoxItem.IsSelectedProperty, false));
-        hover.Setters.Add(new Setter(ListBoxItem.BackgroundProperty, hoverBrush));
+        hover.Setters.Add(new Setter(ListBoxItem.BackgroundProperty, WinBoxTheme.HoverBrush));
         style.Triggers.Add(hover);
 
         return style;
@@ -597,7 +659,7 @@ internal sealed class LauncherOverlayWindow : Window
         var template = new ControlTemplate(typeof(ListBoxItem));
         var border = new FrameworkElementFactory(typeof(Border));
         border.Name = "Bd";
-        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(8));
+        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(WinBoxTheme.ControlRadius));
         border.SetValue(Border.PaddingProperty, new Thickness(8, 6, 8, 6));
         border.SetValue(Border.SnapsToDevicePixelsProperty, true);
         border.SetBinding(

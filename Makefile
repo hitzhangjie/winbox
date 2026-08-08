@@ -29,7 +29,7 @@ build:
 test:
 	dotnet test $(SLN) -c $(CONFIG) --verbosity minimal
 
-run:
+run: build
 	dotnet run --project $(HOST) -c $(CONFIG) --no-launch-profile
 
 clean:

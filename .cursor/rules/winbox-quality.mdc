@@ -18,7 +18,7 @@ Agents bring: skills in `.cursor/skills/` for zero-cost startup and quality enfo
 3. **Where to put code / new project / references** → `winbox-architecture`.
 4. **Tests or CI failures** → `winbox-testing`.
 5. **PR, review, release, distribute** → `winbox-ship`.
-6. **Launcher overlay, tray, settings, result rows, scrolling, theming, or user-visible Host.Ui** → follow `winbox-ui` (design pillars + PR checklist).
+6. **Launcher overlay, tray, settings, result rows, scrolling, theming, polish, or “UI looks rough”** → follow `winbox-ui` (design/craft pillars + craft-audit + PR checklist).
 
 ## Non-negotiables
 

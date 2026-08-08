@@ -69,7 +69,6 @@ public sealed class ResultRowView : Grid
         {
             FontFamily = WinBoxTheme.GlyphFont,
             FontSize = WinBoxTheme.FontGlyph,
-            Foreground = WinBoxTheme.TextSecondaryBrush,
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 0, 8, 0),
@@ -86,7 +85,6 @@ public sealed class ResultRowView : Grid
             FontFamily = WinBoxTheme.UiFont,
             FontSize = UiLayout.FontTitle,
             FontWeight = FontWeights.SemiBold,
-            Foreground = WinBoxTheme.TextPrimaryBrush,
             TextTrimming = TextTrimming.CharacterEllipsis,
             TextWrapping = TextWrapping.NoWrap,
         };
@@ -94,7 +92,6 @@ public sealed class ResultRowView : Grid
         {
             FontFamily = WinBoxTheme.UiFont,
             FontSize = UiLayout.FontSubtitle,
-            Foreground = WinBoxTheme.TextSecondaryBrush,
             TextTrimming = TextTrimming.CharacterEllipsis,
             TextWrapping = TextWrapping.NoWrap,
             Visibility = Visibility.Collapsed,
@@ -104,6 +101,16 @@ public sealed class ResultRowView : Grid
         textStack.Children.Add(_subtitle);
         SetColumn(textStack, 1);
         Children.Add(textStack);
+        ApplyThemeBrushes();
+    }
+
+    public void ApplyThemeBrushes()
+    {
+        _glyph.Foreground = WinBoxTheme.TextSecondaryBrush;
+        _title.Foreground = WinBoxTheme.TextPrimaryBrush;
+        _subtitle.Foreground = WinBoxTheme.TextSecondaryBrush;
+        _title.FontSize = UiLayout.FontTitle;
+        _subtitle.FontSize = UiLayout.FontSubtitle;
     }
 
     public string Title

@@ -45,11 +45,27 @@ internal static class WindowEffects
 
     public static DropShadowEffect CreateOverlayShadow()
     {
+        // Light chrome needs a softer shadow so the white card doesn't look muddy.
         var effect = new DropShadowEffect
         {
-            BlurRadius = 28,
+            BlurRadius = WinBoxTheme.IsDarkEffective ? 28 : 32,
             ShadowDepth = 0,
-            Opacity = 0.55,
+            Opacity = WinBoxTheme.IsDarkEffective ? 0.55 : 0.28,
+            Color = Colors.Black,
+        };
+        effect.Freeze();
+        return effect;
+    }
+
+    /// <summary>Soft elevation for settings cards / panels (lighter than overlay).</summary>
+    public static DropShadowEffect CreateCardShadow()
+    {
+        var effect = new DropShadowEffect
+        {
+            BlurRadius = WinBoxTheme.IsDarkEffective ? 18 : 20,
+            ShadowDepth = 1,
+            Direction = 270,
+            Opacity = WinBoxTheme.IsDarkEffective ? 0.38 : 0.14,
             Color = Colors.Black,
         };
         effect.Freeze();

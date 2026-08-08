@@ -26,6 +26,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="WinBox.Host.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <EmbeddedResource Include="Assets\winbox.ico" Condition="Exists('Assets\winbox.ico')" />
   </ItemGroup>
 

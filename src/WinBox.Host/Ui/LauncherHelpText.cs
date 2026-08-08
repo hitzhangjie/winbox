@@ -1,14 +1,42 @@
 namespace WinBox.Host.Ui;
 
 /// <summary>
-/// Discoverability copy for launcher input modes and shortcuts.
-/// Shared by tray Help and Settings → Shortcuts.
+/// Shared launcher trigger / shortcut rows.
+/// Help uses read-only guide copy; Settings → Shortcuts uses preferences-oriented copy
+/// (editing of triggers and hotkeys is planned).
 /// </summary>
 public static class LauncherHelpText
 {
     public const string WindowTitle = "WinBox Help";
-    public const string Intro =
-        "Summon the launcher, then type. Prefixes switch modes; plain text searches indexed files.";
+
+    /// <summary>Tray Help — calm read-only reference.</summary>
+    public const string HelpIntro =
+        "Quick reference for the launcher. Prefixes switch modes; plain text searches indexed files.";
+
+    public const string HelpModesHeading = "What you can type";
+    public const string HelpKeysHeading = "Keyboard";
+    public const string HelpTrayHeading = "Tray";
+
+    /// <summary>Settings → Shortcuts — framed as defaults you will be able to change.</summary>
+    public const string SettingsIntro =
+        "Current defaults for input triggers and hotkeys. This tab will let you edit them; " +
+        "Web keywords are already editable under Settings → Web.";
+
+    public const string SettingsModesHeading = "Input triggers";
+    public const string SettingsModesHint =
+        "Soon: customize prefixes and keywords here. Until then, use Settings → Web for web aliases.";
+
+    public const string SettingsKeysHeading = "Hotkeys";
+    public const string SettingsKeysHint =
+        "Soon: rebind summon and result actions. Values below are the shipped defaults.";
+
+    public const string SettingsTrayHeading = "Tray actions";
+    public const string SettingsTrayHint = "Tray clicks stay fixed for now.";
+
+    public const string SettingsFooterHint =
+        "Need a read-only walkthrough? Tray → Help. Editing for triggers and hotkeys is tracked for a later release.";
+
+    public const string SettingsStatus = "Defaults shown · editing coming later";
 
     public static IReadOnlyList<(string Trigger, string Description)> QueryModes { get; } =
     [

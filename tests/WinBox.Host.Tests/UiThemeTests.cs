@@ -184,7 +184,27 @@ public sealed class LauncherHelpTextTests
     public void WindowTitle_IsStable()
     {
         Assert.Equal("WinBox Help", LauncherHelpText.WindowTitle);
-        Assert.False(string.IsNullOrWhiteSpace(LauncherHelpText.Intro));
+        Assert.False(string.IsNullOrWhiteSpace(LauncherHelpText.HelpIntro));
+    }
+
+    [Fact]
+    public void HelpAndSettingsCopy_AreDistinct()
+    {
+        Assert.NotEqual(LauncherHelpText.HelpIntro, LauncherHelpText.SettingsIntro);
+        Assert.NotEqual(LauncherHelpText.HelpModesHeading, LauncherHelpText.SettingsModesHeading);
+        Assert.NotEqual(LauncherHelpText.HelpKeysHeading, LauncherHelpText.SettingsKeysHeading);
+        Assert.Contains("edit", LauncherHelpText.SettingsIntro, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("reference", LauncherHelpText.HelpIntro, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("editing coming later", LauncherHelpText.SettingsStatus, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void SettingsWindowSize_MatchesHelpChromeConstants()
+    {
+        Assert.Equal(660, WinBoxTheme.SettingsWindowWidth);
+        Assert.Equal(720, WinBoxTheme.SettingsWindowHeight);
+        Assert.True(WinBoxTheme.SettingsWindowMinWidth < WinBoxTheme.SettingsWindowWidth);
+        Assert.True(WinBoxTheme.SettingsWindowMinHeight < WinBoxTheme.SettingsWindowHeight);
     }
 }
 

@@ -73,10 +73,10 @@ internal sealed class IndexSettingsWindow : Window
         _aiStore = aiStore ?? throw new ArgumentNullException(nameof(aiStore));
         _loginAutoStart = new LoginAutoStart();
         Title = "WinBox — Settings";
-        Width = 660;
-        Height = 720;
-        MinWidth = 540;
-        MinHeight = 520;
+        Width = WinBoxTheme.SettingsWindowWidth;
+        Height = WinBoxTheme.SettingsWindowHeight;
+        MinWidth = WinBoxTheme.SettingsWindowMinWidth;
+        MinHeight = WinBoxTheme.SettingsWindowMinHeight;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Background = WinBoxTheme.SurfaceRaisedBrush;
         Foreground = WinBoxTheme.TextPrimaryBrush;
@@ -300,14 +300,17 @@ internal sealed class IndexSettingsWindow : Window
         _tabs.Items.Add(CreateTab("Appearance", WrapScroll(appearance)));
 
         var shortcuts = new StackPanel();
-        shortcuts.Children.Add(SectionLabel("What you can type", first: true));
-        shortcuts.Children.Add(Hint(LauncherHelpText.Intro));
+        shortcuts.Children.Add(SectionLabel(LauncherHelpText.SettingsModesHeading, first: true));
+        shortcuts.Children.Add(Hint(LauncherHelpText.SettingsIntro));
+        shortcuts.Children.Add(Hint(LauncherHelpText.SettingsModesHint));
         shortcuts.Children.Add(ShortcutRows(LauncherHelpText.QueryModes));
-        shortcuts.Children.Add(SectionLabel("Launcher"));
+        shortcuts.Children.Add(SectionLabel(LauncherHelpText.SettingsKeysHeading));
+        shortcuts.Children.Add(Hint(LauncherHelpText.SettingsKeysHint));
         shortcuts.Children.Add(ShortcutRows(LauncherHelpText.Shortcuts));
-        shortcuts.Children.Add(SectionLabel("Tray"));
+        shortcuts.Children.Add(SectionLabel(LauncherHelpText.SettingsTrayHeading));
+        shortcuts.Children.Add(Hint(LauncherHelpText.SettingsTrayHint));
         shortcuts.Children.Add(ShortcutRows(LauncherHelpText.TrayActions));
-        shortcuts.Children.Add(Hint("Also available from tray → Help. Custom hotkeys are not editable yet."));
+        shortcuts.Children.Add(Hint(LauncherHelpText.SettingsFooterHint));
         _tabs.Items.Add(CreateTab("Shortcuts", WrapScroll(shortcuts)));
 
         _tabs.SelectionChanged += (_, _) =>
@@ -350,7 +353,7 @@ internal sealed class IndexSettingsWindow : Window
         SettingsTab.Web => $"Web searches · {_webStore.FilePath}",
         SettingsTab.Ai => $"AI · {_aiStore.FilePath}",
         SettingsTab.Appearance => $"Appearance · {_uiStore.FilePath}",
-        SettingsTab.Shortcuts => "What you can type · keyboard & tray",
+        SettingsTab.Shortcuts => LauncherHelpText.SettingsStatus,
         _ => $"Index config: {_indexStore.FilePath}",
     };
 

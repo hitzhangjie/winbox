@@ -26,6 +26,11 @@ public static class WinBoxTheme
     public const double ControlRadius = 8;
     public const double SettingsCardRadius = 10;
     public const double SettingsPageMargin = 24;
+    /// <summary>Shared chrome size for Settings and Help so both feel like the same product window.</summary>
+    public const double SettingsWindowWidth = 660;
+    public const double SettingsWindowHeight = 720;
+    public const double SettingsWindowMinWidth = 540;
+    public const double SettingsWindowMinHeight = 520;
     public const double SettingsContentPadding = 20;
     /// <summary>Right inset for settings tab body — keep thin so the page scrollbar sits near the edge.</summary>
     public const double SettingsContentPaddingRight = 4;

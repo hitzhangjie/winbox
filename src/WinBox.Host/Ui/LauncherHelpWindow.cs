@@ -13,12 +13,11 @@ internal sealed class LauncherHelpWindow : Window
     public LauncherHelpWindow()
     {
         Title = LauncherHelpText.WindowTitle;
-        Width = 520;
-        MinWidth = 440;
-        MaxHeight = 640;
-        SizeToContent = SizeToContent.Height;
+        Width = WinBoxTheme.SettingsWindowWidth;
+        Height = WinBoxTheme.SettingsWindowHeight;
+        MinWidth = WinBoxTheme.SettingsWindowMinWidth;
+        MinHeight = WinBoxTheme.SettingsWindowMinHeight;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = true;
         Background = WinBoxTheme.SurfaceRaisedBrush;
         Foreground = WinBoxTheme.TextPrimaryBrush;
@@ -63,7 +62,7 @@ internal sealed class LauncherHelpWindow : Window
         var body = new StackPanel();
         body.Children.Add(new TextBlock
         {
-            Text = LauncherHelpText.Intro,
+            Text = LauncherHelpText.HelpIntro,
             FontSize = WinBoxTheme.FontSubtitle,
             Foreground = WinBoxTheme.TextSecondaryBrush,
             TextWrapping = TextWrapping.Wrap,
@@ -71,13 +70,13 @@ internal sealed class LauncherHelpWindow : Window
             Tag = "hint",
         });
 
-        body.Children.Add(SectionLabel("What you can type", first: true));
+        body.Children.Add(SectionLabel(LauncherHelpText.HelpModesHeading, first: true));
         body.Children.Add(HelpRows(LauncherHelpText.QueryModes, keyWidth: 148));
 
-        body.Children.Add(SectionLabel("Keyboard"));
+        body.Children.Add(SectionLabel(LauncherHelpText.HelpKeysHeading));
         body.Children.Add(HelpRows(LauncherHelpText.Shortcuts, keyWidth: 128));
 
-        body.Children.Add(SectionLabel("Tray"));
+        body.Children.Add(SectionLabel(LauncherHelpText.HelpTrayHeading));
         body.Children.Add(HelpRows(LauncherHelpText.TrayActions, keyWidth: 128));
 
         var scroll = new ScrollViewer

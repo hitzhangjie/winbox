@@ -54,4 +54,9 @@ public sealed class UiOptions
 
     /// <summary>Show a file-search strip under standard Open/Save dialogs.</summary>
     public bool FileDialogAssistEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Global hotkey that opens the launcher (display form, e.g. <c>Alt+U</c>).
+    /// </summary>
+    public string LauncherHotkey { get; set; } = LauncherHotkeyBinding.DefaultDisplay;
 }

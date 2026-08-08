@@ -14,7 +14,7 @@
 make help      # 看常用命令
 make build     # 编译
 make test      # 跑测试（改代码后建议必跑）
-make run       # 启动宿主（Debug+控制台）：Shift+Alt+U 唤起，Esc 关闭，Ctrl+C 退出
+make run       # 启动宿主（Debug+控制台）：Alt+U 唤起，Esc 关闭，Ctrl+C 退出
 make ci        # 对齐 GitHub CI：Release 编译 + 测试（产物为静默 WinExe）
 make dist      # 便携 zip + Setup.exe（artifacts/dist/；安装包也是 WinExe 托盘常驻）
 ```
@@ -78,7 +78,7 @@ WinBox.Host ──────────► WinBox.Abstractions
 1. **注册**：`new SearchPlugin()` 放进 `PluginRegistry`
 2. **启动**：`StartAllAsync()` → 每个插件的 `StartAsync()`
 3. **按能力取用**：`GetRequired<ISearchService>()` —— 要的是「能搜索」，不是某个具体类名
-4. **建索引 → 热键待命**：`EnsureIndexReadyAsync()` 优先从 SQLite 加载（policy 变了才全量扫盘）；`QueryRouter` 按输入分流到 `IQueryHandler`；`Shift+Alt+U` 唤起；`Esc` 关闭；`Ctrl+C` 时 `StopAllAsync`
+4. **建索引 → 热键待命**：`EnsureIndexReadyAsync()` 优先从 SQLite 加载（policy 变了才全量扫盘）；`QueryRouter` 按输入分流到 `IQueryHandler`；`Alt+U` 唤起（Settings → Shortcuts 可改）；`Esc` 关闭；`Ctrl+C` 时 `StopAllAsync`
 
 
 搜索插件 `SearchPlugin` 同时实现两个接口：

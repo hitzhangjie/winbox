@@ -927,6 +927,7 @@ internal sealed class LauncherOverlayWindow : Window
             Theme = current.Theme,
             StartWithWindows = current.StartWithWindows,
             FileDialogAssistEnabled = current.FileDialogAssistEnabled,
+            LauncherHotkey = current.LauncherHotkey,
         };
         try
         {

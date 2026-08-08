@@ -24,7 +24,7 @@ WinBox 是一个面向 Windows 的轻量宿主应用：核心只做插件发现�
 
 | 能力 | 说明 |
 |------|------|
-| 全局热键唤起 | `Shift+Alt+U` 打开 launcher；`Esc` 关闭 |
+| 全局热键唤起 | `Alt+U` 打开 launcher（可在 Settings → Shortcuts 修改）；`Esc` 关闭 |
 | 文件名快速搜索 | 按配置 roots 建索引；启动从 SQLite 加载；Watcher/USN 增量；子串匹配 |
 | Listary 风格 File Search | 类型 / 修改时间过滤、展开查看、资源管理器风格图标 |
 | Open / 另存为对话框助手 | 标准文件对话框底部贴搜索条（仅文件搜索）；选中后填入「文件名」；Settings → General 可关 |
@@ -102,7 +102,7 @@ winbox/
 make help      # 查看常用命令
 make build     # 编译
 make test      # 跑测试
-make run       # 启动宿主（托盘菜单开设置；Shift+Alt+U 唤起；Esc 关闭）
+make run       # 启动宿主（托盘菜单开设置；Alt+U 唤起；Esc 关闭）
 make ci        # 对齐 CI：Release 编译 + 测试
 make dist      # 便携 zip + Setup.exe → artifacts/dist/
 ```

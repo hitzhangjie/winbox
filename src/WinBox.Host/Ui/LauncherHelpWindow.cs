@@ -10,7 +10,7 @@ internal sealed class LauncherHelpWindow : Window
 {
     private readonly Button _closeButton;
 
-    public LauncherHelpWindow()
+    public LauncherHelpWindow(string? openLauncherHotkey = null)
     {
         Title = LauncherHelpText.WindowTitle;
         Width = WinBoxTheme.SettingsWindowWidth;
@@ -74,7 +74,7 @@ internal sealed class LauncherHelpWindow : Window
         body.Children.Add(HelpRows(LauncherHelpText.QueryModes, keyWidth: 148));
 
         body.Children.Add(SectionLabel(LauncherHelpText.HelpKeysHeading));
-        body.Children.Add(HelpRows(LauncherHelpText.Shortcuts, keyWidth: 128));
+        body.Children.Add(HelpRows(LauncherHelpText.ShortcutsWith(openLauncherHotkey), keyWidth: 128));
 
         body.Children.Add(SectionLabel(LauncherHelpText.HelpTrayHeading));
         body.Children.Add(HelpRows(LauncherHelpText.TrayActions, keyWidth: 128));

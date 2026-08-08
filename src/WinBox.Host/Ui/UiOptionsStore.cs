@@ -87,6 +87,7 @@ public sealed class UiOptionsStore
             Theme = WinBoxTheme.ToStorage(WinBoxTheme.ParseTheme(options.Theme)),
             StartWithWindows = options.StartWithWindows,
             FileDialogAssistEnabled = options.FileDialogAssistEnabled,
+            LauncherHotkey = LauncherHotkeyBinding.Normalize(options.LauncherHotkey),
         };
     }
 

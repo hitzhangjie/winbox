@@ -1,6 +1,5 @@
 ﻿using System.IO;
 using System.Windows;
-using System.Windows.Input;
 using System.Windows.Interop;
 using WinBox.Host.Query;
 using WinBox.Host.Ui;
@@ -105,30 +104,6 @@ internal static class Program
 
             overlay.OpenFileSearchRequested += OpenFileSearch;
 
-            void OpenSettings(SettingsTab tab)
-            {
-                if (settingsWindow is { IsLoaded: true })
-                {
-                    settingsWindow.ShowTab(tab);
-                    BringSettingsToFront(settingsWindow);
-                    return;
-                }
-
-                settingsWindow = new IndexSettingsWindow(
-                    searchPlugin,
-                    optionsStore,
-                    uiStore,
-                    webPlugin,
-                    webStore,
-                    aiPlugin,
-                    aiStore,
-                    tab,
-                    onUiOptionsChanged: () => dialogAssist?.RefreshEnabledFromStore());
-                settingsWindow.Closed += (_, _) => settingsWindow = null;
-                settingsWindow.Show();
-                BringSettingsToFront(settingsWindow);
-            }
-
             void OpenHelp()
             {
                 if (helpWindow is { IsLoaded: true })
@@ -137,7 +112,8 @@ internal static class Program
                     return;
                 }
 
-                helpWindow = new LauncherHelpWindow();
+                var openHotkey = uiStore.LoadOrDefault().LauncherHotkey;
+                helpWindow = new LauncherHelpWindow(openHotkey);
                 helpWindow.Closed += (_, _) => helpWindow = null;
                 helpWindow.Show();
                 BringWindowToFront(helpWindow);
@@ -159,20 +135,61 @@ internal static class Program
 
             void BringSettingsToFront(Window window) => BringWindowToFront(window);
 
-            try
+            void BindLauncherHotkey()
             {
-                launcherHotkey = new GlobalHotkey(overlay, ModifierKeys.Alt | ModifierKeys.Shift, Key.U);
-            }
-            catch (InvalidOperationException ex)
-            {
-                Console.Error.WriteLine(ex.Message);
-                Console.Error.WriteLine("Launcher hotkey unavailable; use the tray icon instead.");
+                launcherHotkey?.Dispose();
+                launcherHotkey = null;
+
+                var display = uiStore.LoadOrDefault().LauncherHotkey;
+                if (!LauncherHotkeyBinding.TryParse(display, out var modifiers, out var key))
+                {
+                    modifiers = LauncherHotkeyBinding.DefaultModifiers;
+                    key = LauncherHotkeyBinding.DefaultKey;
+                    display = LauncherHotkeyBinding.DefaultDisplay;
+                }
+
+                try
+                {
+                    launcherHotkey = new GlobalHotkey(overlay, modifiers, key);
+                    launcherHotkey.Pressed += () => overlay.Dispatcher.Invoke(overlay.ActivateOverlay);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    Console.Error.WriteLine(ex.Message);
+                    Console.Error.WriteLine(
+                        $"Launcher hotkey ({display}) unavailable; use the tray icon instead.");
+                }
             }
 
-            if (launcherHotkey is not null)
+            void OpenSettings(SettingsTab tab)
             {
-                launcherHotkey.Pressed += () => overlay.Dispatcher.Invoke(overlay.ActivateOverlay);
+                if (settingsWindow is { IsLoaded: true })
+                {
+                    settingsWindow.ShowTab(tab);
+                    BringSettingsToFront(settingsWindow);
+                    return;
+                }
+
+                settingsWindow = new IndexSettingsWindow(
+                    searchPlugin,
+                    optionsStore,
+                    uiStore,
+                    webPlugin,
+                    webStore,
+                    aiPlugin,
+                    aiStore,
+                    tab,
+                    onUiOptionsChanged: () =>
+                    {
+                        dialogAssist?.RefreshEnabledFromStore();
+                        BindLauncherHotkey();
+                    });
+                settingsWindow.Closed += (_, _) => settingsWindow = null;
+                settingsWindow.Show();
+                BringSettingsToFront(settingsWindow);
             }
+
+            BindLauncherHotkey();
 
             tray = new AppTrayIcon(overlay.Dispatcher);
             tray.OpenLauncherRequested += () => overlay.ActivateOverlay();
@@ -199,12 +216,13 @@ internal static class Program
                 app.Dispatcher.Invoke(app.Shutdown);
             };
 
+            var hotkeyLabel = uiStore.LoadOrDefault().LauncherHotkey;
             Console.WriteLine("WinBox host started.");
             Console.WriteLine("  Tray icon     right-click → Settings / Help / Quit");
             Console.WriteLine("  Tray double-click → open launcher");
             if (launcherHotkey is not null)
             {
-                Console.WriteLine("  Shift+Alt+U  open launcher");
+                Console.WriteLine($"  {hotkeyLabel,-12} open launcher");
             }
 
             Console.WriteLine("  Esc          dismiss launcher");

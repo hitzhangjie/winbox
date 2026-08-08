@@ -175,9 +175,12 @@ public sealed class LauncherHelpTextTests
     [Fact]
     public void Shortcuts_IncludeSummonAndActivate()
     {
-        Assert.Contains(LauncherHelpText.Shortcuts, s => s.Keys == "Shift+Alt+U");
+        Assert.Contains(LauncherHelpText.Shortcuts, s => s.Keys == "Alt+U");
         Assert.Contains(LauncherHelpText.Shortcuts, s => s.Keys == "Enter");
         Assert.Contains(LauncherHelpText.TrayActions, t => t.Description.Contains("Help", StringComparison.Ordinal));
+        Assert.Equal(
+            "Ctrl+Alt+K",
+            LauncherHelpText.ShortcutsWith("Ctrl+Alt+K")[0].Keys);
     }
 
     [Fact]
@@ -193,9 +196,22 @@ public sealed class LauncherHelpTextTests
         Assert.NotEqual(LauncherHelpText.HelpIntro, LauncherHelpText.SettingsIntro);
         Assert.NotEqual(LauncherHelpText.HelpModesHeading, LauncherHelpText.SettingsModesHeading);
         Assert.NotEqual(LauncherHelpText.HelpKeysHeading, LauncherHelpText.SettingsKeysHeading);
-        Assert.Contains("edit", LauncherHelpText.SettingsIntro, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("rebind", LauncherHelpText.SettingsIntro, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("reference", LauncherHelpText.HelpIntro, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("editing coming later", LauncherHelpText.SettingsStatus, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("editable", LauncherHelpText.SettingsStatus, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            LauncherHotkeyBinding.DefaultDisplay,
+            LauncherHelpText.SettingsDefaultHotkeyBadge,
+            StringComparison.Ordinal);
+        Assert.StartsWith("Default", LauncherHelpText.SettingsDefaultHotkeyBadge, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "editing coming later",
+            LauncherHelpText.SettingsStatus,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            LauncherHotkeyBinding.DefaultDisplay,
+            LauncherHelpText.SettingsKeysHint,
+            StringComparison.Ordinal);
     }
 
     [Fact]

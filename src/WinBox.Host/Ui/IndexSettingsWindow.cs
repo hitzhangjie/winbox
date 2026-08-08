@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Win32;
 using WinBox.Search;
@@ -50,11 +51,14 @@ internal sealed class IndexSettingsWindow : Window
     private readonly TextBlock _fontInputValue;
     private readonly TextBlock _fontTitleValue;
     private readonly TextBlock _scrollWidthValue;
+    private readonly TextBox _launcherHotkeyBox;
     private readonly TextBlock _statusText;
     private readonly Button _saveButton;
     private readonly TabControl _tabs;
     private readonly Border _footerBar;
     private bool _loadingAppearance;
+    private bool _capturingHotkey;
+    private string _hotkeyBeforeCapture = LauncherHotkeyBinding.DefaultDisplay;
 
     public IndexSettingsWindow(
         SearchPlugin search,
@@ -319,13 +323,47 @@ internal sealed class IndexSettingsWindow : Window
         _tabs.Items.Add(CreateTab("Appearance", WrapScroll(appearance)));
 
         var shortcuts = new StackPanel();
-        shortcuts.Children.Add(SectionLabel(LauncherHelpText.SettingsModesHeading, first: true));
+        shortcuts.Children.Add(SectionLabel(LauncherHelpText.SettingsKeysHeading, first: true));
         shortcuts.Children.Add(Hint(LauncherHelpText.SettingsIntro));
+        shortcuts.Children.Add(Hint(LauncherHelpText.SettingsKeysHint));
+
+        shortcuts.Children.Add(new TextBlock
+        {
+            Text = LauncherHelpText.OpenLauncherDescription,
+            Foreground = WinBoxTheme.TextPrimaryBrush,
+            Margin = new Thickness(0, 4, 0, 2),
+            Tag = "body",
+        });
+        shortcuts.Children.Add(new TextBlock
+        {
+            Text = LauncherHelpText.SettingsDefaultHotkeyBadge,
+            FontWeight = FontWeights.SemiBold,
+            FontSize = WinBoxTheme.FontSubtitle,
+            Foreground = WinBoxTheme.AccentBrush,
+            Margin = new Thickness(0, 0, 0, 8),
+            Tag = "shortcut-key",
+        });
+        _launcherHotkeyBox = SettingsChrome.CreateField();
+        _launcherHotkeyBox.IsReadOnly = true;
+        _launcherHotkeyBox.Cursor = Cursors.IBeam;
+        _launcherHotkeyBox.FontWeight = FontWeights.SemiBold;
+        _launcherHotkeyBox.LostKeyboardFocus += (_, _) => CancelHotkeyCaptureIfNeeded();
+        _launcherHotkeyBox.PreviewKeyDown += OnLauncherHotkeyPreviewKeyDown;
+        shortcuts.Children.Add(SettingsChrome.WrapFlat(_launcherHotkeyBox));
+        shortcuts.Children.Add(PathListButtons(
+            add: BeginHotkeyCapture,
+            remove: ResetLauncherHotkey,
+            addLabel: "Capture…",
+            removeLabel: "Reset default"));
+
+        shortcuts.Children.Add(SectionLabel("In launcher"));
+        shortcuts.Children.Add(Hint("These stay fixed for now."));
+        shortcuts.Children.Add(ShortcutRows(LauncherHelpText.InLauncherShortcuts));
+
+        shortcuts.Children.Add(SectionLabel(LauncherHelpText.SettingsModesHeading));
         shortcuts.Children.Add(Hint(LauncherHelpText.SettingsModesHint));
         shortcuts.Children.Add(ShortcutRows(LauncherHelpText.QueryModes));
-        shortcuts.Children.Add(SectionLabel(LauncherHelpText.SettingsKeysHeading));
-        shortcuts.Children.Add(Hint(LauncherHelpText.SettingsKeysHint));
-        shortcuts.Children.Add(ShortcutRows(LauncherHelpText.Shortcuts));
+
         shortcuts.Children.Add(SectionLabel(LauncherHelpText.SettingsTrayHeading));
         shortcuts.Children.Add(Hint(LauncherHelpText.SettingsTrayHint));
         shortcuts.Children.Add(ShortcutRows(LauncherHelpText.TrayActions));
@@ -349,6 +387,7 @@ internal sealed class IndexSettingsWindow : Window
         LoadAiFromOptions(_aiPlugin.Options);
         LoadGeneralFromStore();
         LoadAppearanceFromStore();
+        LoadShortcutsFromStore();
         _tabs.SelectedIndex = (int)initialTab;
         RefreshSaveButtonForTab();
         UpdateStatus(StatusForTab(initialTab));
@@ -372,7 +411,7 @@ internal sealed class IndexSettingsWindow : Window
         SettingsTab.Web => $"Web searches · {_webStore.FilePath}",
         SettingsTab.Ai => $"AI · {_aiStore.FilePath}",
         SettingsTab.Appearance => $"Appearance · {_uiStore.FilePath}",
-        SettingsTab.Shortcuts => LauncherHelpText.SettingsStatus,
+        SettingsTab.Shortcuts => $"{LauncherHelpText.SettingsStatus} · {_uiStore.FilePath}",
         _ => $"Index config: {_indexStore.FilePath}",
     };
 
@@ -580,6 +619,137 @@ internal sealed class IndexSettingsWindow : Window
         }
     }
 
+    private void LoadShortcutsFromStore()
+    {
+        _loadingAppearance = true;
+        try
+        {
+            var options = _uiStore.LoadOrDefault();
+            var display = LauncherHotkeyBinding.Normalize(options.LauncherHotkey);
+            _hotkeyBeforeCapture = display;
+            ShowCommittedHotkey(display);
+        }
+        finally
+        {
+            _loadingAppearance = false;
+            _capturingHotkey = false;
+        }
+    }
+
+    private void BeginHotkeyCapture()
+    {
+        if (_loadingAppearance)
+        {
+            return;
+        }
+
+        if (!_capturingHotkey)
+        {
+            _capturingHotkey = true;
+            _launcherHotkeyBox.Text = "Press new shortcut…";
+            _launcherHotkeyBox.Foreground = WinBoxTheme.TextSecondaryBrush;
+            UpdateStatus("Press a shortcut (Esc cancels).");
+        }
+
+        _ = _launcherHotkeyBox.Focus();
+    }
+
+    private void CancelHotkeyCaptureIfNeeded()
+    {
+        if (!_capturingHotkey)
+        {
+            return;
+        }
+
+        _capturingHotkey = false;
+        ShowCommittedHotkey(_hotkeyBeforeCapture);
+        UpdateStatus(StatusForTab(SettingsTab.Shortcuts));
+    }
+
+    private void OnLauncherHotkeyPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (!_capturingHotkey)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+
+        if (key == Key.Escape)
+        {
+            _capturingHotkey = false;
+            ShowCommittedHotkey(_hotkeyBeforeCapture);
+            Keyboard.ClearFocus();
+            UpdateStatus("Hotkey capture cancelled.");
+            return;
+        }
+
+        if (LauncherHotkeyBinding.IsModifierKey(key) || key is Key.None or Key.DeadCharProcessed)
+        {
+            return;
+        }
+
+        var modifiers = Keyboard.Modifiers;
+        if (modifiers == ModifierKeys.None || !LauncherHotkeyBinding.IsAllowedKey(key))
+        {
+            UpdateStatus("Need Ctrl, Alt, Shift, or Win plus a key.");
+            return;
+        }
+
+        var display = LauncherHotkeyBinding.Format(modifiers, key);
+        _capturingHotkey = false;
+        PersistLauncherHotkey(display);
+        Keyboard.ClearFocus();
+    }
+
+    private void ResetLauncherHotkey()
+    {
+        _capturingHotkey = false;
+        PersistLauncherHotkey(LauncherHotkeyBinding.DefaultDisplay);
+    }
+
+    private void ShowCommittedHotkey(string display)
+    {
+        _launcherHotkeyBox.Text = display;
+        _launcherHotkeyBox.Foreground = WinBoxTheme.AccentBrush;
+    }
+
+    private void PersistLauncherHotkey(string display)
+    {
+        if (_loadingAppearance)
+        {
+            return;
+        }
+
+        var normalized = LauncherHotkeyBinding.Normalize(display);
+        var options = _uiStore.LoadOrDefault();
+        options.LauncherHotkey = normalized;
+
+        try
+        {
+            _uiStore.Save(options);
+            _loadingAppearance = true;
+            try
+            {
+                _hotkeyBeforeCapture = normalized;
+                ShowCommittedHotkey(normalized);
+            }
+            finally
+            {
+                _loadingAppearance = false;
+            }
+
+            _onUiOptionsChanged?.Invoke();
+            UpdateStatus($"Open launcher: {normalized}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            LoadShortcutsFromStore();
+            UpdateStatus($"Hotkey save failed: {ex.Message}");
+        }
+    }
+
     private void OnHostThemeChanged()
     {
         Dispatcher.Invoke(ApplyThemeChrome);
@@ -597,6 +767,12 @@ internal sealed class IndexSettingsWindow : Window
         SettingsChrome.ApplyTabControl(_tabs);
         SettingsChrome.StyleEmbeddedField(_includeExtensionsBox);
         SettingsChrome.StyleEmbeddedField(_excludeExtensionsBox);
+        SettingsChrome.StyleEmbeddedField(_launcherHotkeyBox);
+        if (!_capturingHotkey)
+        {
+            _launcherHotkeyBox.Foreground = WinBoxTheme.AccentBrush;
+            _launcherHotkeyBox.FontWeight = FontWeights.SemiBold;
+        }
         SettingsChrome.StyleEmbeddedField(_excludePatternsBox);
         SettingsChrome.StyleEmbeddedField(_indexStoreDirBox);
         SettingsChrome.StyleEmbeddedField(_maxMemoryMbBox);

@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
@@ -69,6 +69,22 @@ internal static class Program
             _ = new WindowInteropHelper(overlay).EnsureHandle();
 
             IndexSettingsWindow? settingsWindow = null;
+            FileSearchWindow? fileSearchWindow = null;
+
+            void OpenFileSearch(string? seedQuery)
+            {
+                if (fileSearchWindow is { IsLoaded: true })
+                {
+                    fileSearchWindow.Open(seedQuery);
+                    return;
+                }
+
+                fileSearchWindow = new FileSearchWindow(searchPlugin);
+                fileSearchWindow.Closed += (_, _) => fileSearchWindow = null;
+                fileSearchWindow.Open(seedQuery);
+            }
+
+            overlay.OpenFileSearchRequested += OpenFileSearch;
 
             void OpenSettings(SettingsTab tab)
             {

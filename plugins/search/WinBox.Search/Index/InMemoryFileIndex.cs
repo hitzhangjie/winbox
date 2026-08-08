@@ -109,7 +109,8 @@ public sealed class InMemoryFileIndex
                     FullPath: info.FullName,
                     FileName: info.Name,
                     Extension: IndexPolicy.NormalizeExtension(info.Extension),
-                    LastWriteTimeUtc: info.LastWriteTimeUtc);
+                    LastWriteTimeUtc: info.LastWriteTimeUtc,
+                    LastAccessTimeUtc: info.LastAccessTimeUtc);
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -122,6 +123,7 @@ public sealed class InMemoryFileIndex
             FullPath: path,
             FileName: fileName,
             Extension: IndexPolicy.NormalizeExtension(Path.GetExtension(path)),
-            LastWriteTimeUtc: DateTime.MinValue);
+            LastWriteTimeUtc: DateTime.MinValue,
+            LastAccessTimeUtc: DateTime.MinValue);
     }
 }

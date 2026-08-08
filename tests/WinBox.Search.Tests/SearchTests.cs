@@ -237,13 +237,14 @@ public sealed class InMemoryFileIndexTests
         var index = new InMemoryFileIndex();
         index.Upsert(
         [
-            new FileIndexEntry(info.FullName, info.Name, "md", info.LastWriteTimeUtc),
+            new FileIndexEntry(info.FullName, info.Name, "md", info.LastWriteTimeUtc, info.LastAccessTimeUtc),
         ]);
 
         var snap = index.SnapshotEntries();
         Assert.Single(snap);
         Assert.Equal("md", snap[0].Extension);
         Assert.Equal(info.LastWriteTimeUtc, snap[0].LastWriteTimeUtc);
+        Assert.Equal(info.LastAccessTimeUtc, snap[0].LastAccessTimeUtc);
     }
 }
 
@@ -600,4 +601,143 @@ internal sealed class TempIndexFixture : IDisposable
             // Best-effort cleanup; leftover dirs under %TEMP%\winbox-index-tests are OK.
         }
     }
+}
+
+public sealed class FileTypeCategoriesTests
+{
+    [Fact]
+    public void ExtensionsFor_All_ReturnsNull()
+    {
+        Assert.Null(FileTypeCategories.ExtensionsFor(FileTypeCategories.All));
+        Assert.Null(FileTypeCategories.ExtensionsFor(null));
+    }
+
+    [Fact]
+    public void ExtensionsFor_Pdf_ContainsPdfOnly()
+    {
+        var ext = FileTypeCategories.ExtensionsFor(FileTypeCategories.Pdf);
+        Assert.NotNull(ext);
+        Assert.Equal(["pdf"], ext);
+    }
+
+    [Fact]
+    public void ExtensionsFor_Text_IncludesMarkdown()
+    {
+        var ext = FileTypeCategories.ExtensionsFor(FileTypeCategories.Text);
+        Assert.NotNull(ext);
+        Assert.Contains("md", ext);
+        Assert.Contains("txt", ext);
+    }
+
+    [Fact]
+    public void TryGetExtensions_Unknown_ReturnsFalse()
+    {
+        Assert.False(FileTypeCategories.TryGetExtensions("nope", out _));
+    }
+}
+
+public sealed class FilteredSearchEngineTests
+{
+    private readonly FilteredSearchEngine _engine = new();
+    private static readonly DateTime Now = new(2026, 8, 8, 12, 0, 0, DateTimeKind.Utc);
+
+    [Fact]
+    public void Search_EmptyTextAndNoFilters_ReturnsEmpty()
+    {
+        var entries = new[]
+        {
+            Entry(@"C:\a.pdf", "a.pdf", "pdf", Now.AddDays(-1), Now.AddDays(-1)),
+        };
+
+        var hits = _engine.Search(entries, new SearchQuery(Text: "", Limit: 10), Now);
+
+        Assert.Empty(hits);
+    }
+
+    [Fact]
+    public void Search_PdfFilter_ReturnsOnlyPdf()
+    {
+        var entries = new[]
+        {
+            Entry(@"C:\a.pdf", "a.pdf", "pdf", Now.AddDays(-1), Now.AddDays(-1)),
+            Entry(@"C:\b.txt", "b.txt", "txt", Now.AddDays(-1), Now.AddDays(-1)),
+            Entry(@"C:\c.PDF", "c.PDF", "pdf", Now.AddDays(-2), Now.AddDays(-2)),
+        };
+
+        var hits = _engine.Search(
+            entries,
+            new SearchQuery(Text: "", Extensions: FileTypeCategories.ExtensionsFor(FileTypeCategories.Pdf), Limit: 10),
+            Now);
+
+        Assert.Equal(2, hits.Count);
+        Assert.All(hits, h => Assert.EndsWith(".pdf", h.Name, StringComparison.OrdinalIgnoreCase));
+        Assert.Equal("a.pdf", hits[0].Name);
+    }
+
+    [Fact]
+    public void Search_ModifiedWindow_ExcludesOlderFiles()
+    {
+        var entries = new[]
+        {
+            Entry(@"C:\fresh.txt", "fresh.txt", "txt", Now.AddDays(-2), Now),
+            Entry(@"C:\old.txt", "old.txt", "txt", Now.AddDays(-40), Now),
+        };
+
+        var hits = _engine.Search(
+            entries,
+            new SearchQuery(Text: "", ModifiedAfterUtc: Now.AddDays(-7), Limit: 10),
+            Now);
+
+        Assert.Single(hits);
+        Assert.Equal("fresh.txt", hits[0].Name);
+    }
+
+    [Fact]
+    public void Search_RarelyUsed_ExcludesRecentlyAccessed()
+    {
+        var entries = new[]
+        {
+            Entry(@"C:\stale.txt", "stale.txt", "txt", Now.AddYears(-1), Now.AddDays(-200)),
+            Entry(@"C:\hot.txt", "hot.txt", "txt", Now.AddYears(-1), Now.AddDays(-10)),
+        };
+
+        var hits = _engine.Search(
+            entries,
+            new SearchQuery(Text: "", RarelyUsedOnly: true, Limit: 10),
+            Now);
+
+        Assert.Single(hits);
+        Assert.Equal("stale.txt", hits[0].Name);
+    }
+
+    [Fact]
+    public void Search_TextPlusFilter_RanksSubstring()
+    {
+        var entries = new[]
+        {
+            Entry(@"C:\winbox-notes.pdf", "winbox-notes.pdf", "pdf", Now, Now),
+            Entry(@"C:\other.pdf", "other.pdf", "pdf", Now, Now),
+            Entry(@"C:\winbox.txt", "winbox.txt", "txt", Now, Now),
+        };
+
+        var hits = _engine.Search(
+            entries,
+            new SearchQuery(
+                Text: "winbox",
+                Extensions: FileTypeCategories.ExtensionsFor(FileTypeCategories.Pdf),
+                Limit: 10),
+            Now);
+
+        Assert.Single(hits);
+        Assert.Equal("winbox-notes.pdf", hits[0].Name);
+        Assert.NotNull(hits[0].LastWriteTimeUtc);
+    }
+
+    private static FileIndexEntry Entry(
+        string path,
+        string name,
+        string ext,
+        DateTime writeUtc,
+        DateTime accessUtc) =>
+        new(path, name, ext, writeUtc, accessUtc);
 }

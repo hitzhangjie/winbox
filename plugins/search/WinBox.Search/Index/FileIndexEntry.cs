@@ -7,4 +7,5 @@ public sealed record FileIndexEntry(
     string FullPath,
     string FileName,
     string Extension,
-    DateTime LastWriteTimeUtc);
+    DateTime LastWriteTimeUtc,
+    DateTime LastAccessTimeUtc);

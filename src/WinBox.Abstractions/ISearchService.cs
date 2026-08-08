@@ -21,6 +21,28 @@ public interface ISearchService
         string query,
         int limit = 20,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Filtered / browse search used by File Search and future surfaces.
+    /// </summary>
+    Task<IReadOnlyList<SearchHit>> SearchAsync(
+        SearchQuery query,
+        CancellationToken cancellationToken = default);
 }
 
-public sealed record SearchHit(string Path, string Name, double Score);
+/// <summary>
+/// Structured search request. Empty text with no filters yields no hits (compact launcher
+/// semantics). File Search may pass extension / mtime / rarely-used filters for browse mode.
+/// </summary>
+public sealed record SearchQuery(
+    string Text = "",
+    IReadOnlyList<string>? Extensions = null,
+    DateTime? ModifiedAfterUtc = null,
+    bool RarelyUsedOnly = false,
+    int Limit = 100);
+
+public sealed record SearchHit(
+    string Path,
+    string Name,
+    double Score,
+    DateTime? LastWriteTimeUtc = null);

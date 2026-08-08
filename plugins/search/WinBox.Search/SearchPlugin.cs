@@ -10,7 +10,7 @@ public sealed class SearchPlugin : IWinBoxPlugin, ISearchService, IQueryHandler
     public const int MatchPriority = 0;
 
     private readonly InMemoryFileIndex _index = new();
-    private readonly SubstringSearchEngine _engine = new();
+    private readonly FilteredSearchEngine _filteredEngine = new();
     private readonly DirectoryScanner _scanner = new();
     private readonly IPathActivation _pathActivation;
     private readonly object _optionsGate = new();
@@ -105,9 +105,17 @@ public sealed class SearchPlugin : IWinBoxPlugin, ISearchService, IQueryHandler
         int limit = 20,
         CancellationToken cancellationToken = default)
     {
+        return SearchAsync(new SearchQuery(Text: query, Limit: limit), cancellationToken);
+    }
+
+    public Task<IReadOnlyList<SearchHit>> SearchAsync(
+        SearchQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
         cancellationToken.ThrowIfCancellationRequested();
         EnsureStarted();
-        var hits = _engine.Search(_index.Snapshot(), query, limit);
+        var hits = _filteredEngine.Search(_index.SnapshotEntries(), query);
         return Task.FromResult(hits);
     }
 

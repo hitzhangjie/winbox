@@ -22,6 +22,8 @@ internal sealed class LauncherOverlayWindow : Window
     private readonly TextBlock _modeSeparator;
     private readonly TextBox _queryBox;
     private readonly TextBlock _placeholder;
+    private readonly Button _expandButton;
+    private readonly TextBlock _expandGlyph;
     private readonly ListBox _results;
     private readonly StackPanel _emptyPanel;
     private readonly TextBlock _emptyTitle;
@@ -34,6 +36,9 @@ internal sealed class LauncherOverlayWindow : Window
     private bool _syncingUi;
     private bool _suppressPersist;
     private bool _dismissing;
+
+    /// <summary>Raised when the user clicks the File Search expand affordance.</summary>
+    public event Action<string>? OpenFileSearchRequested;
 
     public LauncherOverlayWindow(
         LauncherOverlayState state,
@@ -106,6 +111,10 @@ internal sealed class LauncherOverlayWindow : Window
         inputRow.Children.Add(_modeLabel);
         inputRow.Children.Add(_modeSeparator);
 
+        _expandButton = CreateExpandButton(out _expandGlyph);
+        DockPanel.SetDock(_expandButton, Dock.Right);
+        inputRow.Children.Add(_expandButton);
+
         var queryHost = new Grid();
         _placeholder = new TextBlock
         {
@@ -126,6 +135,7 @@ internal sealed class LauncherOverlayWindow : Window
             BorderThickness = new Thickness(0),
             CaretBrush = WinBoxTheme.AccentBrush,
             VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0),
         };
         _queryBox.TextChanged += OnQueryTextChanged;
         queryHost.Children.Add(_placeholder);
@@ -275,6 +285,11 @@ internal sealed class LauncherOverlayWindow : Window
             _queryBox.Foreground = WinBoxTheme.TextPrimaryBrush;
             _queryBox.CaretBrush = WinBoxTheme.AccentBrush;
             _placeholder.Foreground = WinBoxTheme.TextSecondaryBrush;
+            _expandGlyph.Foreground = WinBoxTheme.TextSecondaryBrush;
+            _expandButton.Background = Brushes.Transparent;
+            _expandButton.BorderBrush = Brushes.Transparent;
+            _expandButton.Template = CreateExpandButtonTemplate();
+            ToolTipService.SetToolTip(_expandButton, FileSearchChromeText.ExpandTooltip);
             _results.Background = Brushes.Transparent;
             _results.Foreground = WinBoxTheme.TextPrimaryBrush;
             _results.ItemContainerStyle = CreateResultItemStyle();
@@ -349,7 +364,9 @@ internal sealed class LauncherOverlayWindow : Window
         }
 
         // Allow dragging from chrome / labels; keep TextBox and list interaction intact.
-        if (e.OriginalSource is TextBoxBase or ListBoxItem || IsDescendantOf(_queryBox, e.OriginalSource as DependencyObject)
+        if (e.OriginalSource is TextBoxBase or ListBoxItem or ButtonBase
+            || IsDescendantOf(_queryBox, e.OriginalSource as DependencyObject)
+            || IsDescendantOf(_expandButton, e.OriginalSource as DependencyObject)
             || IsDescendantOf(_results, e.OriginalSource as DependencyObject))
         {
             return;
@@ -554,6 +571,85 @@ internal sealed class LauncherOverlayWindow : Window
         _divider.Visibility = _results.Visibility == Visibility.Visible || _emptyPanel.Visibility == Visibility.Visible
             ? Visibility.Visible
             : Visibility.Collapsed;
+    }
+
+    private Button CreateExpandButton(out TextBlock glyph)
+    {
+        // "⋯" reads as More / 查看更多 — clearer than search+pop-out badge.
+        glyph = new TextBlock
+        {
+            Text = "\uE712",
+            FontFamily = WinBoxTheme.GlyphFont,
+            FontSize = 16,
+            Foreground = WinBoxTheme.TextSecondaryBrush,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            IsHitTestVisible = false,
+        };
+
+        var button = new Button
+        {
+            Content = glyph,
+            Width = 32,
+            Height = 32,
+            Background = Brushes.Transparent,
+            BorderBrush = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Cursor = Cursors.Hand,
+            Focusable = false,
+            FocusVisualStyle = null,
+            VerticalAlignment = VerticalAlignment.Center,
+            Padding = new Thickness(0),
+            Template = CreateExpandButtonTemplate(),
+        };
+        ToolTipService.SetToolTip(button, FileSearchChromeText.ExpandTooltip);
+        var glyphRef = glyph;
+        button.MouseEnter += (_, _) => glyphRef.Foreground = WinBoxTheme.TextPrimaryBrush;
+        button.MouseLeave += (_, _) =>
+        {
+            if (!button.IsMouseOver)
+            {
+                glyphRef.Foreground = WinBoxTheme.TextSecondaryBrush;
+            }
+        };
+        button.Click += (_, _) =>
+        {
+            var seed = string.IsNullOrEmpty(_state.ModeLabel) ? _queryBox.Text : _state.Payload;
+            OpenFileSearchRequested?.Invoke(seed ?? string.Empty);
+            DismissOverlay();
+        };
+        return button;
+    }
+
+    /// <summary>
+    /// Soft pill hover using theme HoverBrush — avoids the stock WPF light-blue flash.
+    /// </summary>
+    private static ControlTemplate CreateExpandButtonTemplate()
+    {
+        var template = new ControlTemplate(typeof(Button));
+        var border = new FrameworkElementFactory(typeof(Border));
+        border.Name = "Bd";
+        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(WinBoxTheme.ControlRadius));
+        border.SetValue(Border.SnapsToDevicePixelsProperty, true);
+        border.SetValue(Border.BackgroundProperty, Brushes.Transparent);
+        border.SetValue(Border.BorderThicknessProperty, new Thickness(0));
+        border.SetValue(Border.PaddingProperty, new TemplateBindingExtension(Button.PaddingProperty));
+
+        var presenter = new FrameworkElementFactory(typeof(ContentPresenter));
+        presenter.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+        presenter.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+        border.AppendChild(presenter);
+        template.VisualTree = border;
+
+        var hover = new Trigger { Property = Button.IsMouseOverProperty, Value = true };
+        hover.Setters.Add(new Setter(Border.BackgroundProperty, WinBoxTheme.HoverBrush) { TargetName = "Bd" });
+        template.Triggers.Add(hover);
+
+        var pressed = new Trigger { Property = Button.IsPressedProperty, Value = true };
+        pressed.Setters.Add(new Setter(Border.BackgroundProperty, WinBoxTheme.SelectionBrush) { TargetName = "Bd" });
+        template.Triggers.Add(pressed);
+
+        return template;
     }
 
     private void ApplyPlacement()

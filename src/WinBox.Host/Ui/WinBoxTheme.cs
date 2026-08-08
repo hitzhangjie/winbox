@@ -35,7 +35,7 @@ public static class WinBoxTheme
     public const double ResultsMaxHeight = 320;
     public const double ResultRowMinHeight = 44;
     public const double FontInput = 18;
-    public const double FontTitle = 14;
+    public const double FontTitle = 15;
     public const double FontSubtitle = 12;
     public const double FontFooter = 11;
     public const double FontGlyph = 14;

@@ -120,7 +120,8 @@ public sealed class DirectoryScanner
                 FullPath: info.FullName,
                 FileName: fileName,
                 Extension: extension,
-                LastWriteTimeUtc: info.LastWriteTimeUtc);
+                LastWriteTimeUtc: info.LastWriteTimeUtc,
+                LastAccessTimeUtc: info.LastAccessTimeUtc);
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

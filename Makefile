@@ -17,7 +17,7 @@ help:
 	@echo "  make clean     - clean build outputs"
 	@echo "  make rebuild   - clean + build"
 	@echo "  make ci        - Release restore/build/test (like CI)"
-	@echo "  make dist      - publish self-contained win-x64 zip (Windows 11 amd64)"
+	@echo "  make dist      - portable zip + Setup.exe (Windows 11 amd64)"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make build CONFIG=Release"
@@ -50,6 +50,6 @@ ci:
 	dotnet build $(SLN) -c Release --no-restore
 	dotnet test $(SLN) -c Release --no-build --verbosity minimal
 
-# Portable package for Windows 11 amd64. VERSION optional (tag / Directory.Build.props / 0.0.0-dev).
+# Portable zip + Inno Setup installer (Windows 11 amd64). VERSION optional.
 dist:
 	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dist.ps1 -Configuration Release -Runtime "$(RUNTIME)" $(if $(VERSION),-Version "$(VERSION)",)

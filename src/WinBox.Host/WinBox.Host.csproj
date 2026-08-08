@@ -7,7 +7,9 @@
   </ItemGroup>
 
   <PropertyGroup>
+    <!-- Debug: console for make run / logs. Release+dist: quiet WinExe tray resident. -->
     <OutputType>Exe</OutputType>
+    <OutputType Condition="'$(Configuration)' != 'Debug'">WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>

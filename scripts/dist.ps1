@@ -1,18 +1,21 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Publish WinBox Host as a self-contained win-x64 package and zip it.
+  Publish WinBox Host and produce portable zip + Windows Setup installer.
 
 .DESCRIPTION
   Supported runtime target: Windows 11 amd64 (RID win-x64).
-  Dev builds keep UseAppHost=false; dist forces a native WinBox.Host.exe apphost.
+  Artifacts:
+    - WinBox-<ver>-win-x64.zip          (portable / no installer)
+    - WinBox-<ver>-win-x64-setup.exe    (Inno Setup → Program Files)
 #>
 [CmdletBinding()]
 param(
     [string]$Configuration = "Release",
     [string]$Runtime = "win-x64",
     [string]$Version = "",
-    [string]$RepoRoot = ""
+    [string]$RepoRoot = "",
+    [switch]$SkipInstaller
 )
 
 $ErrorActionPreference = "Stop"
@@ -62,7 +65,6 @@ function Resolve-PackageVersion {
         return (Get-NormalizedVersion -Raw $env:GITHUB_REF_NAME)
     }
 
-    # Prefer the tag name when packaging during release.published (ref is the tag).
     if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_EVENT_NAME) -and
         $env:GITHUB_EVENT_NAME -eq "release" -and
         -not [string]::IsNullOrWhiteSpace($env:GITHUB_REF_NAME)) {
@@ -81,6 +83,90 @@ function Resolve-PackageVersion {
     return "0.0.0-dev"
 }
 
+function Find-Iscc {
+    $candidates = @()
+    if (-not [string]::IsNullOrWhiteSpace($env:WINBOX_ISCC)) {
+        $candidates += $env:WINBOX_ISCC
+    }
+    $cmd = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
+    if ($cmd) {
+        $candidates += $cmd.Source
+    }
+    $candidates += @(
+        "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+        "${env:ProgramFiles}\Inno Setup 6\ISCC.exe",
+        (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe")
+    )
+
+    foreach ($path in $candidates) {
+        if ($path -and (Test-Path -LiteralPath $path)) {
+            return (Resolve-Path -LiteralPath $path).Path
+        }
+    }
+    return $null
+}
+
+function Install-InnoSetupLocal {
+    $targetDir = Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6"
+    $isccPath = Join-Path $targetDir "ISCC.exe"
+    if (Test-Path -LiteralPath $isccPath) {
+        return $isccPath
+    }
+
+    # Prefer winget when available (same source CI/docs recommend for interactive installs).
+    $winget = Get-Command "winget.exe" -ErrorAction SilentlyContinue
+    if ($winget) {
+        Write-Host "Installing Inno Setup 6 via winget ..."
+        & winget.exe install --id JRSoftware.InnoSetup -e --source winget `
+            --accept-package-agreements --accept-source-agreements --disable-interactivity
+        $found = Find-Iscc
+        if ($found) {
+            return $found
+        }
+    }
+
+    Write-Host "Bootstrapping Inno Setup 6 to $targetDir ..."
+    $bootstrap = Join-Path $env:TEMP "winbox-innosetup-6.7.3.exe"
+    # Pinned GitHub release asset (jrsoftware.org/download.php redirects to an HTML page).
+    $uri = "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe"
+    Write-Host "Downloading $uri"
+    Invoke-WebRequest -Uri $uri -OutFile $bootstrap -UseBasicParsing
+
+    $item = Get-Item -LiteralPath $bootstrap
+    if ($item.Length -lt 1MB) {
+        throw "Downloaded Inno Setup installer looks too small ($($item.Length) bytes): $bootstrap"
+    }
+
+    $args = @(
+        "/VERYSILENT",
+        "/SUPPRESSMSGBOXES",
+        "/NORESTART",
+        "/SP-",
+        "/DIR=`"$targetDir`""
+    )
+    $proc = Start-Process -FilePath $bootstrap -ArgumentList $args -Wait -PassThru
+    if ($proc.ExitCode -ne 0) {
+        throw "Inno Setup bootstrap failed with exit code $($proc.ExitCode)"
+    }
+
+    $found = Find-Iscc
+    if ($found) {
+        return $found
+    }
+    if (-not (Test-Path -LiteralPath $isccPath)) {
+        throw "ISCC.exe missing after bootstrap. Install Inno Setup 6 manually, or set WINBOX_ISCC."
+    }
+    return $isccPath
+}
+
+function Ensure-Iscc {
+    $found = Find-Iscc
+    if ($found) {
+        return $found
+    }
+    return (Install-InnoSetupLocal)
+}
+
 $root = Resolve-RepoRoot -Hint $RepoRoot
 Set-Location -LiteralPath $root
 
@@ -95,13 +181,20 @@ $publishDir = Join-Path $root "artifacts\publish\$Runtime"
 $distDir = Join-Path $root "artifacts\dist"
 $zipName = "WinBox-$packageVersion-$Runtime.zip"
 $zipPath = Join-Path $distDir $zipName
+$setupName = "WinBox-$packageVersion-$Runtime-setup.exe"
+$setupPath = Join-Path $distDir $setupName
+$issPath = Join-Path $root "packaging\winbox.iss"
+$iconPath = Join-Path $root "src\WinBox.Host\Assets\winbox.ico"
 
 Write-Host "WinBox dist"
 Write-Host "  version : $packageVersion (assembly $fourPartVersion)"
 Write-Host "  runtime : $Runtime (Windows 11 amd64)"
 Write-Host "  config  : $Configuration"
 Write-Host "  publish : $publishDir"
-Write-Host "  package : $zipPath"
+Write-Host "  portable: $zipPath"
+if (-not $SkipInstaller) {
+    Write-Host "  setup   : $setupPath"
+}
 
 if (Test-Path -LiteralPath $publishDir) {
     Remove-Item -LiteralPath $publishDir -Recurse -Force
@@ -135,7 +228,7 @@ if (-not (Test-Path -LiteralPath $exePath)) {
     throw "Expected apphost missing after publish: $exePath"
 }
 
-# Drop runtime diagnostic helper; not needed for end-user portable runs.
+# Drop runtime diagnostic helper; not needed for end-user packages.
 $createDump = Join-Path $publishDir "createdump.exe"
 if (Test-Path -LiteralPath $createDump) {
     Remove-Item -LiteralPath $createDump -Force
@@ -145,9 +238,50 @@ if (Test-Path -LiteralPath $zipPath) {
     Remove-Item -LiteralPath $zipPath -Force
 }
 
-# Compress publish folder contents (not the folder itself) for a flat unzip experience.
 Compress-Archive -Path (Join-Path $publishDir "*") -DestinationPath $zipPath -Force
-
 $zipItem = Get-Item -LiteralPath $zipPath
 Write-Host "Created $($zipItem.FullName) ($([math]::Round($zipItem.Length / 1MB, 2)) MB)"
 Write-Host "DIST_ZIP=$($zipItem.FullName)"
+
+if ($SkipInstaller) {
+    Write-Host "SkipInstaller set; not building Setup.exe"
+    return
+}
+
+if (-not (Test-Path -LiteralPath $issPath)) {
+    throw "Inno Setup script missing: $issPath"
+}
+if (-not (Test-Path -LiteralPath $iconPath)) {
+    throw "Setup icon missing: $iconPath"
+}
+
+$iscc = Ensure-Iscc
+Write-Host "Using ISCC: $iscc"
+
+if (Test-Path -LiteralPath $setupPath) {
+    Remove-Item -LiteralPath $setupPath -Force
+}
+
+# Absolute paths for ISCC /D defines (spaces-safe).
+$isccArgs = @(
+    "/DMyAppVersion=$packageVersion",
+    "/DMyAppRuntime=$Runtime",
+    "/DSourceDir=$publishDir",
+    "/DOutputDir=$distDir",
+    "/DSetupIcon=$iconPath",
+    $issPath
+)
+
+Write-Host "ISCC $($isccArgs -join ' ')"
+& $iscc @isccArgs
+if ($LASTEXITCODE -ne 0) {
+    throw "Inno Setup compile failed with exit code $LASTEXITCODE"
+}
+
+if (-not (Test-Path -LiteralPath $setupPath)) {
+    throw "Expected setup missing after ISCC: $setupPath"
+}
+
+$setupItem = Get-Item -LiteralPath $setupPath
+Write-Host "Created $($setupItem.FullName) ($([math]::Round($setupItem.Length / 1MB, 2)) MB)"
+Write-Host "DIST_SETUP=$($setupItem.FullName)"

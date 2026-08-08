@@ -31,7 +31,7 @@ WinBox 是一个面向 Windows 的轻量宿主应用：核心只做插件发现�
 | 工具箱插件 | 计算器、CMD、可配置 Web 前缀搜索（Settings → Web）、AI 骨架 |
 | 开机自启 | Settings → General → Start with Windows |
 | 质量门禁 | `make test` / `make ci` + GitHub Actions CI |
-| 分发打包 | `make dist` → Windows 11 amd64 自包含 zip；打 tag / 发 Release 自动走流水线 |
+| 分发打包 | `make dist` → 便携 zip + Setup 安装包；打 tag / 发 Release 自动挂附件 |
 
 尚未完成（有意延后）：持久化索引、USN/Watcher 增量、OpenPath 等激活动作、插件按需发现安装、代码签名 / winget。
 
@@ -41,7 +41,7 @@ WinBox 是一个面向 Windows 的轻量宿主应用：核心只做插件发现�
 |----|----------|
 | 操作系统 | **Windows 11** |
 | 处理器 | **amd64（x64）** RID：`win-x64` |
-| 安装形态 | 自包含 zip（解压即用，内含 `WinBox.Host.exe`） |
+| 安装形态 | **便携 zip**（解压即用）+ **Setup.exe**（Inno Setup，装到 Program Files） |
 
 CI 在 `windows-latest` 上构建上述产物。工作流矩阵已预留扩展位；其它架构 / 系统版本暂不承诺。
 
@@ -78,7 +78,8 @@ winbox/
 ├── global.json                 # 锁定 SDK 主版本
 ├── Directory.Build.props       # 统一可空引用 / 版本 / 警告策略
 ├── Makefile                    # build / test / ci / dist
-├── scripts/dist.ps1            # 自包含 publish + zip
+├── scripts/dist.ps1            # publish → zip + Inno Setup
+├── packaging/winbox.iss        # Windows 安装向导脚本
 ├── .github/workflows/
 │   ├── ci.yml                  # PR / 主干质量门禁
 │   └── dist.yml                # tag 验证打包；Release 上传附件
@@ -102,7 +103,7 @@ make build     # 编译
 make test      # 跑测试
 make run       # 启动宿主（托盘菜单开设置；Shift+Alt+U 唤起；Esc 关闭）
 make ci        # 对齐 CI：Release 编译 + 测试
-make dist      # 打 Windows 11 amd64 自包含包 → artifacts/dist/*.zip
+make dist      # 便携 zip + Setup.exe → artifacts/dist/
 ```
 
 可选指定版本：
@@ -111,6 +112,12 @@ make dist      # 打 Windows 11 amd64 自包含包 → artifacts/dist/*.zip
 make dist VERSION=0.1.0
 ```
 
+产物：
+
+| 文件 | 用途 |
+|------|------|
+| `WinBox-<ver>-win-x64.zip` | 便携包：解压后运行 `WinBox.Host.exe`，无需安装 |
+| `WinBox-<ver>-win-x64-setup.exe` | 安装包：向导安装到 Program Files，可卸载、可建快捷方式 |
 等价的 `dotnet` 命令：
 
 ```bash
@@ -123,14 +130,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dist.ps1
 
 开发态默认 `UseAppHost=false`（避免本机策略误拦原生 exe）；`make dist` 会强制生成可双击的 `WinBox.Host.exe`。
 
+Host 子系统按配置切换，**不用改 csproj**：`make run`（Debug）是带控制台的 `Exe`，方便看日志 / Ctrl+C；`make ci` / `make dist`（Release）是静默托盘的 `WinExe`。
+
 ## 发版与安装包
 
 1. **打 tag**（如 `v0.1.0`）→ `Dist` 工作流跑测试并打包，产物上传为 workflow artifact（先验证打包是否健康）。
-2. **在 GitHub 创建 Release**（基于该 tag）→ 同一工作流再次打包，并把 `WinBox-<version>-win-x64.zip` **挂到 Release 附件**。
-3. 用户下载 zip、解压后运行 `WinBox.Host.exe`。
+2. **在 GitHub 创建 Release**（基于该 tag）→ 同一工作流再次打包，并把 **zip + Setup.exe** 挂到 Release 附件。
+3. 用户按习惯二选一：
+   - 便携：下载 zip → 解压 → 运行 `WinBox.Host.exe`
+   - 安装：下载 `*-setup.exe` → 下一步安装到 Program Files → 开始菜单启动
 
 版本来源：tag 名（去掉前导 `v`）优先；本地未指定时用 `Directory.Build.props` 中的 `Version`（当前 `0.1.0`）。
 
+本地第一次打安装包时，若未安装 [Inno Setup 6](https://jrsoftware.org/isinfo.php)，`scripts/dist.ps1` 会尝试自动下载并装到 `%LocalAppData%\Programs\Inno Setup 6`。CI 则通过 Chocolatey 安装。
 ## 贡献
 
 欢迎提想法与 Issue。第一次接触本仓库或 C# 也没关系：

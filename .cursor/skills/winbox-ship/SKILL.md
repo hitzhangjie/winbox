@@ -59,20 +59,21 @@ Do not demand C# idiom perfection if behavior + tests + boundaries are sound.
 
 ## Release & distribution
 
-Supported product target today: **Windows 11 amd64** (`win-x64` self-contained zip).
+Supported product target today: **Windows 11 amd64** (`win-x64`).
 
 | Track | Expectation |
 |-------|-------------|
-| Local package | `make dist` (optional `VERSION=x.y.z`) → `artifacts/dist/WinBox-<ver>-win-x64.zip` |
-| Script | `scripts/dist.ps1` — `dotnet publish` self-contained + zip; forces `UseAppHost=true` |
+| Local package | `make dist` → `artifacts/dist/` portable **zip** + Inno **Setup.exe** |
+| Script | `scripts/dist.ps1` — publish self-contained; zip; compile `packaging/winbox.iss` |
+| Inno Setup | CI: `choco install innosetup`; local: existing ISCC or bootstrap to `%LocalAppData%\Programs\Inno Setup 6` |
 | Version | Tag `v*` (strip leading `v`) > `-Version` / `WINBOX_VERSION` > `Directory.Build.props` `<Version>` |
-| Tag push | `.github/workflows/dist.yml` verifies (`build`+`test`) then packages; uploads workflow artifact |
-| GitHub Release | Same workflow on `release: published` re-packages and **uploads zip as release assets** |
-| Channels | CI → tag dist check → GitHub Release zip → (later) winget / signed installer |
-| Signing | Dev may use `UseAppHost=false`; release zip ships native `WinBox.Host.exe` (Authenticode still TODO) |
-| Notes | Every release lists user-visible search/host changes + upgrade steps (unzip → run exe) |
+| Tag push | `.github/workflows/dist.yml` verifies then packages; uploads workflow artifacts |
+| GitHub Release | Same workflow on `release: published` uploads **zip + setup.exe** as release assets |
+| Channels | CI → tag dist check → GitHub Release (portable + installer) → (later) winget / Authenticode |
+| Signing | Dev may use `UseAppHost=false`; release ships native `WinBox.Host.exe` (Authenticode still TODO) |
+| Notes | Release notes: portable unzip vs Setup wizard; upgrade = reinstall Setup or replace portable folder |
 
-`make ci` remains the authenticity gate inside Dist before publish. Do not commit `artifacts/` or bins.
+`make ci` remains the authenticity gate inside Dist before publish. Do not commit `artifacts/` or bins. `-SkipInstaller` builds zip only when debugging publish without Inno.
 
 ## Merge rules of thumb
 

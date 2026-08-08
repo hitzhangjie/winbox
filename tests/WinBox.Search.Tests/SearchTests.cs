@@ -62,6 +62,21 @@ public sealed class IndexPolicyTests
     }
 
     [Fact]
+    public void ShouldEnterDirectory_SkipsExcludeRootsPrefix()
+    {
+        var policy = new IndexPolicy(new IndexOptions
+        {
+            ExcludeRoots = [@"D:\Github\big"],
+            ExcludePathPatterns = [],
+        });
+
+        Assert.False(policy.ShouldEnterDirectory(@"D:\Github\big"));
+        Assert.False(policy.ShouldEnterDirectory(@"D:\Github\big\src"));
+        Assert.True(policy.ShouldEnterDirectory(@"D:\Github\big-sibling"));
+        Assert.True(policy.ShouldEnterDirectory(@"D:\Github\other"));
+    }
+
+    [Fact]
     public void ShouldIncludeFile_ExcludeExtensionWins()
     {
         var policy = new IndexPolicy(new IndexOptions
@@ -77,6 +92,21 @@ public sealed class IndexPolicyTests
     }
 
     [Fact]
+    public void ShouldIncludeFile_ExcludeExtensions_WithoutIncludeAllowList()
+    {
+        var policy = new IndexPolicy(new IndexOptions
+        {
+            IncludeExtensions = [],
+            ExcludeExtensions = ["exe", "dll"],
+            ExcludePathPatterns = [],
+        });
+
+        Assert.True(policy.ShouldIncludeFile(@"D:\a\readme.md"));
+        Assert.False(policy.ShouldIncludeFile(@"D:\a\tool.exe"));
+        Assert.False(policy.ShouldIncludeFile(@"D:\a\lib.dll"));
+    }
+
+    [Fact]
     public void ShouldIncludeFile_EmptyIncludeExtensions_AllowsAll()
     {
         var policy = new IndexPolicy(new IndexOptions
@@ -87,6 +117,19 @@ public sealed class IndexPolicyTests
 
         Assert.True(policy.ShouldIncludeFile(@"D:\a\readme.md"));
         Assert.True(policy.ShouldIncludeFile(@"D:\a\main.go"));
+    }
+
+    [Fact]
+    public void ShouldIncludeFile_SkipsExcludeRoots()
+    {
+        var policy = new IndexPolicy(new IndexOptions
+        {
+            ExcludeRoots = [@"D:\Github\proposal\vendor"],
+            ExcludePathPatterns = [],
+        });
+
+        Assert.False(policy.ShouldIncludeFile(@"D:\Github\proposal\vendor\x.go"));
+        Assert.True(policy.ShouldIncludeFile(@"D:\Github\proposal\design.md"));
     }
 }
 
@@ -134,6 +177,29 @@ public sealed class DirectoryScannerTests
 
         Assert.Equal(2, entries.Count);
         Assert.DoesNotContain(entries, e => e.Extension.Equals("go", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Scan_ExcludeRootsAndExtensions()
+    {
+        using var fixture = TempIndexFixture.Create();
+        fixture.WriteFile("keep/a.md", "keep");
+        fixture.WriteFile("skip-me/b.md", "skip");
+        fixture.WriteFile("keep/c.exe", "bin");
+
+        var skipRoot = Path.Combine(fixture.Root, "skip-me");
+        var scanner = new DirectoryScanner();
+        var entries = scanner.Scan(new IndexOptions
+        {
+            Roots = [fixture.Root],
+            ExcludeRoots = [skipRoot],
+            ExcludeExtensions = ["exe"],
+            ExcludePathPatterns = [],
+            Recursive = true,
+        });
+
+        Assert.Single(entries);
+        Assert.Equal("a.md", entries[0].FileName);
     }
 
     [Fact]
@@ -240,6 +306,110 @@ public sealed class SearchPluginTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => plugin.RebuildIndexAsync());
+    }
+
+    [Fact]
+    public async Task ApplyOptions_RebuildsAgainstNewRoots()
+    {
+        using var first = TempIndexFixture.Create();
+        using var second = TempIndexFixture.Create();
+        first.WriteFile("alpha.md", "a");
+        second.WriteFile("beta.md", "b");
+
+        var plugin = new SearchPlugin(new IndexOptions
+        {
+            Roots = [first.Root],
+            ExcludePathPatterns = [],
+            Recursive = true,
+        });
+        await plugin.StartAsync();
+        await plugin.RebuildIndexAsync();
+        Assert.Equal(1, plugin.IndexedCount);
+
+        await plugin.ApplyOptionsAsync(new IndexOptions
+        {
+            Roots = [second.Root],
+            ExcludePathPatterns = [],
+            Recursive = true,
+        });
+
+        Assert.Equal(1, plugin.IndexedCount);
+        var hits = await plugin.SearchAsync("beta");
+        Assert.Contains(hits, h => h.Name.Equals("beta.md", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(await plugin.SearchAsync("alpha"), h => h.Name.Equals("alpha.md", StringComparison.OrdinalIgnoreCase));
+    }
+}
+
+public sealed class IndexOptionsStoreTests
+{
+    [Fact]
+    public void SaveAndLoad_RoundTripsOptions()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "winbox-index-tests", Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            var store = new IndexOptionsStore(path);
+            var original = new IndexOptions
+            {
+                Roots = [@"D:\Github\proposal", @"D:\Github\winbox"],
+                ExcludeRoots = [@"D:\Github\proposal\vendor"],
+                IncludeExtensions = ["md", "go"],
+                ExcludeExtensions = ["exe"],
+                IncludePathPatterns = [],
+                ExcludePathPatterns = [".git", "node_modules"],
+                Recursive = false,
+            };
+
+            store.Save(original);
+            var loaded = store.LoadOrDefault();
+
+            Assert.Equal(original.Roots, loaded.Roots);
+            Assert.Equal(original.ExcludeRoots, loaded.ExcludeRoots);
+            Assert.Equal(original.IncludeExtensions, loaded.IncludeExtensions);
+            Assert.Equal(original.ExcludeExtensions, loaded.ExcludeExtensions);
+            Assert.Equal(original.ExcludePathPatterns, loaded.ExcludePathPatterns);
+            Assert.False(loaded.Recursive);
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    [Fact]
+    public void LoadOrDefault_MissingFile_ReturnsFallback()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "winbox-index-tests", "missing-" + Guid.NewGuid().ToString("N") + ".json");
+        var store = new IndexOptionsStore(path);
+        var fallback = IndexOptions.ForDevRoots(@"D:\only-fallback");
+
+        var loaded = store.LoadOrDefault(fallback);
+
+        Assert.Equal([@"D:\only-fallback"], loaded.Roots);
+    }
+}
+
+public sealed class IndexOptionsTextTests
+{
+    [Fact]
+    public void SplitExtensions_StripsDotsAndDedupes()
+    {
+        var result = IndexOptionsText.SplitExtensions("md, .GO; txt  md");
+
+        Assert.Equal(["md", "go", "txt"], result);
+    }
+
+    [Fact]
+    public void SplitList_SplitsLines()
+    {
+        var result = IndexOptionsText.SplitList(".git\nnode_modules\r\n.bin", '\n', '\r');
+
+        Assert.Contains(".git", result);
+        Assert.Contains("node_modules", result);
+        Assert.Contains(".bin", result);
     }
 }
 

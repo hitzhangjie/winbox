@@ -22,7 +22,7 @@ WinBox 第一阶段能力插件：本地文件索引 + 快速搜索，目标是�
 协议定义在 `src/WinBox.Abstractions`（`IWinBoxPlugin` / `ISearchService` / `IQueryHandler`）。
 
 已落地：**按 roots 递归扫盘**（白/黑名单、扩展名过滤、不跟随 reparse point）→ 写入文件名索引 → `RebuildIndexAsync`。  
-Host 暂硬编码窄 roots（如 `D:\Github\proposal`），**配置面板下一步**。单测在 `%TEMP%` 下落盘、建索、清理。
+索引范围经 **`IndexOptionsStore`**（`%LocalAppData%\WinBox\index-options.json`）持久化；Host **托盘图标**（右键 → Index settings）编辑 roots / 扩展名 / 路径黑名单并重建。无配置文件时使用首次默认根（如 `D:\Github\proposal`）。单测在 `%TEMP%` 下落盘、建索、清理。
 
 ---
 
@@ -53,15 +53,19 @@ Host 暂硬编码窄 roots（如 `D:\Github\proposal`），**配置面板下一�
 - 符号链接 / 交接点：MVP **不跟随**
 - 网络盘 / 云盘占位文件：MVP 可标不支持或只索引已落盘文件
 
-配置模型（设置 UI 可后补，模型宜先定）：
+配置模型（设置 UI 已对齐）：
 
 ```text
-roots[]
+roots[]                     # 要扫的根目录
+excludeRoots[]              # 排除的目录前缀（其下全部跳过）
 includeExtensions?          # 空 = 不限制类型
-excludeExtensions?
-includePathPatterns?        # 可选
-excludePathPatterns[]       # 建议带合理默认
+excludeExtensions?          # 永远跳过；优先于 include
+includePathPatterns?        # 可选（高级，面板暂未编辑）
+excludePathPatterns[]       # 路径段名黑名单（node_modules 等）
+recursive
 ```
+
+扫描判定顺序：excludeRoots → excludePathPatterns → excludeExtensions → includeExtensions → includePathPatterns。
 
 ### 2. 建索引方式与查询方式
 

@@ -11,18 +11,19 @@ namespace WinBox.Host.Ui;
 internal sealed class GlobalHotkey : IDisposable
 {
     private const int WmHotkey = 0x0312;
-    private const int HotkeyId = 0x57B0; // WinBox launcher
 
+    private readonly int _hotkeyId;
     private readonly HwndSource _source;
     private readonly IntPtr _hwnd;
     private bool _disposed;
 
     public event Action? Pressed;
 
-    public GlobalHotkey(Window window, ModifierKeys modifiers, Key key)
+    public GlobalHotkey(Window window, ModifierKeys modifiers, Key key, int hotkeyId = 0x57B0)
     {
         ArgumentNullException.ThrowIfNull(window);
 
+        _hotkeyId = hotkeyId;
         var helper = new WindowInteropHelper(window);
         _hwnd = helper.EnsureHandle();
         _source = HwndSource.FromHwnd(_hwnd)
@@ -31,7 +32,7 @@ internal sealed class GlobalHotkey : IDisposable
         _source.AddHook(WndProc);
 
         var vk = KeyInterop.VirtualKeyFromKey(key);
-        if (!NativeMethods.RegisterHotKey(_hwnd, HotkeyId, (uint)modifiers, (uint)vk))
+        if (!NativeMethods.RegisterHotKey(_hwnd, _hotkeyId, (uint)modifiers, (uint)vk))
         {
             throw new InvalidOperationException(
                 $"Failed to register hotkey {modifiers}+{key}. It may already be in use.");
@@ -40,7 +41,7 @@ internal sealed class GlobalHotkey : IDisposable
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        if (msg == WmHotkey && wParam.ToInt32() == HotkeyId)
+        if (msg == WmHotkey && wParam.ToInt32() == _hotkeyId)
         {
             Pressed?.Invoke();
             handled = true;
@@ -58,7 +59,7 @@ internal sealed class GlobalHotkey : IDisposable
 
         _disposed = true;
         _source.RemoveHook(WndProc);
-        NativeMethods.UnregisterHotKey(_hwnd, HotkeyId);
+        NativeMethods.UnregisterHotKey(_hwnd, _hotkeyId);
         // Do not dispose _source — the Window owns the HWND / HwndSource lifetime.
     }
 

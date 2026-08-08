@@ -88,7 +88,7 @@ WinBox.Host ──────────► WinBox.Abstractions
 - `Index/InMemoryFileIndex`：存路径
 - `Query/SubstringSearchEngine`：子串匹配 + 简单排序
 
-当前已按配置 roots + 白/黑名单真实扫盘写入内存文件名索引（Host 暂硬编码窄路径）；持久化、配置面板、增量更新见后续阶段。设计细节：[plugins/search/README.md](plugins/search/README.md)。
+当前已按配置 roots + 白/黑名单真实扫盘写入内存文件名索引；范围由**托盘 → Index settings** 编辑并写入 `%LocalAppData%\WinBox\index-options.json`。持久化索引、增量更新见后续阶段。设计细节：[plugins/search/README.md](plugins/search/README.md)。
 
 ---
 
@@ -97,10 +97,10 @@ WinBox.Host ──────────► WinBox.Abstractions
 | 已经有的 | 还只是骨架 / 未做 |
 |----------|-------------------|
 | 多项目解决方案 + 清晰引用关系 | 从磁盘自动发现插件（现在是代码里 `new`） |
-| 插件启停合同 + 按策略扫盘建文件名索引 | 持久化索引、配置面板 |
+| 插件启停合同 + 按策略扫盘建文件名索引 | 持久化索引文件本身 |
 | 内存索引 + 子串搜索（默认输入） | OpenPath 等激活动作 |
-| 搜索索引设计文档（文件名优先 + 增量方案） | Watcher / USN 增量、全文/标题可选索引 |
-| 全局热键 + 唤起层 + QueryRouter | 托盘、可配置热键、结果区尺寸定制 |
+| 索引设置面板（托盘 → Index settings）+ JSON 配置 | Watcher / USN 增量、全文/标题可选索引 |
+| 全局热键 + 托盘 + 唤起层 + QueryRouter | 可配置热键、结果区尺寸定制 |
 | Web 前缀（google/gg）、计算器、`>` CMD、`?` AI 骨架 | Web/AI 设置面板、LLM 流式、别名编辑 |
 | 单元测试 + Makefile + GitHub Actions CI | 进程隔离、按需安装插件包 |
 
@@ -113,8 +113,8 @@ WinBox.Host ──────────► WinBox.Abstractions
 | 你想做的事 | 优先看 / 改 |
 |------------|-------------|
 | 改插件合同（启停、搜索、查询分流） | `src/WinBox.Abstractions/`，并同步改实现与测试 |
-| 改宿主注册、启停、热键 / 唤起层 / Router | `src/WinBox.Host/`（UI 在 `Ui/`，路由在 `Query/`） |
-| 改索引存储或扫描逻辑 | `plugins/search/WinBox.Search/Index/` |
+| 改宿主注册、启停、热键 / 唤起层 / Router / 索引设置窗 | `src/WinBox.Host/`（UI 在 `Ui/`，路由在 `Query/`） |
+| 改索引存储、扫描、配置持久化 | `plugins/search/WinBox.Search/Index/` |
 | 改匹配、排序、查询行为 | `plugins/search/WinBox.Search/Query/` |
 | 改搜索插件对外行为 | `plugins/search/WinBox.Search/SearchPlugin.cs` |
 | 改计算器 / CMD / Web 前缀 / AI | `plugins/toolbox/WinBox.Toolbox/` |

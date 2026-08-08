@@ -11,15 +11,19 @@ namespace WinBox.Host;
 
 internal static class Program
 {
-    // Temporary hardcoded roots until the settings panel lands. Keep narrow to avoid full-disk cost.
-    private static readonly IndexOptions DevIndexOptions = IndexOptions.ForDevRoots(
-        @"D:\Github\proposal");
-
     [STAThread]
     private static void Main()
     {
+        // WinForms NotifyIcon needs visual styles when hosted from WPF.
+        System.Windows.Forms.Application.EnableVisualStyles();
+        System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
+
+        var optionsStore = new IndexOptionsStore(IndexOptionsStore.DefaultFilePath);
+        var indexOptions = optionsStore.LoadOrDefault();
+
         var registry = new PluginRegistry();
-        registry.Register(new SearchPlugin(DevIndexOptions));
+        var searchPlugin = new SearchPlugin(indexOptions);
+        registry.Register(searchPlugin);
         registry.Register(new CalculatorPlugin());
         registry.Register(new ShellPlugin());
         registry.Register(new WebSearchPlugin());
@@ -30,23 +34,26 @@ internal static class Program
             ShutdownMode = ShutdownMode.OnExplicitShutdown,
         };
 
-        app.Startup += (_, _) => OnStartup(app, registry);
+        app.Startup += (_, _) => OnStartup(app, registry, searchPlugin, optionsStore);
 
         app.Run();
     }
 
-    private static async void OnStartup(Application app, PluginRegistry registry)
+    private static async void OnStartup(
+        Application app,
+        PluginRegistry registry,
+        SearchPlugin searchPlugin,
+        IndexOptionsStore optionsStore)
     {
+        AppTrayIcon? tray = null;
+        GlobalHotkey? launcherHotkey = null;
+
         try
         {
             await registry.StartAllAsync().ConfigureAwait(true);
 
-            var search = registry.GetRequired<Abstractions.ISearchService>();
-            await search.RebuildIndexAsync().ConfigureAwait(true);
-            if (search is SearchPlugin searchPlugin)
-            {
-                Console.WriteLine($"Indexed {searchPlugin.IndexedCount} file(s) from configured roots.");
-            }
+            await searchPlugin.RebuildIndexAsync().ConfigureAwait(true);
+            Console.WriteLine($"Indexed {searchPlugin.IndexedCount} file(s) from configured roots.");
 
             var router = new QueryRouter(registry.GetMany<Abstractions.IQueryHandler>());
             var overlayState = new LauncherOverlayState();
@@ -54,24 +61,63 @@ internal static class Program
             var overlay = new LauncherOverlayWindow(overlayState, session);
             _ = new WindowInteropHelper(overlay).EnsureHandle();
 
-            GlobalHotkey hotkey;
+            IndexSettingsWindow? settingsWindow = null;
+
+            void OpenSettings()
+            {
+                if (settingsWindow is { IsLoaded: true })
+                {
+                    BringSettingsToFront(settingsWindow);
+                    return;
+                }
+
+                settingsWindow = new IndexSettingsWindow(searchPlugin, optionsStore);
+                settingsWindow.Closed += (_, _) => settingsWindow = null;
+                settingsWindow.Show();
+                BringSettingsToFront(settingsWindow);
+            }
+
+            static void BringSettingsToFront(Window window)
+            {
+                if (window.WindowState == WindowState.Minimized)
+                {
+                    window.WindowState = WindowState.Normal;
+                }
+
+                window.Show();
+                window.Activate();
+                window.Topmost = true;
+                window.Topmost = false;
+                _ = window.Focus();
+            }
+
             try
             {
-                hotkey = new GlobalHotkey(overlay, ModifierKeys.Alt | ModifierKeys.Shift, Key.U);
+                launcherHotkey = new GlobalHotkey(overlay, ModifierKeys.Alt | ModifierKeys.Shift, Key.U);
             }
             catch (InvalidOperationException ex)
             {
                 Console.Error.WriteLine(ex.Message);
-                await registry.StopAllAsync().ConfigureAwait(true);
-                app.Shutdown(1);
-                return;
+                Console.Error.WriteLine("Launcher hotkey unavailable; use the tray icon instead.");
             }
 
-            hotkey.Pressed += () => overlay.Dispatcher.Invoke(overlay.ActivateOverlay);
+            if (launcherHotkey is not null)
+            {
+                launcherHotkey.Pressed += () => overlay.Dispatcher.Invoke(overlay.ActivateOverlay);
+            }
+
+            tray = new AppTrayIcon(overlay.Dispatcher);
+            tray.OpenLauncherRequested += () => overlay.ActivateOverlay();
+            tray.OpenSettingsRequested += OpenSettings;
+            tray.ExitRequested += () => app.Shutdown();
+            tray.ShowBalloon(
+                "WinBox",
+                $"Ready — {searchPlugin.IndexedCount} files indexed. Right-click tray for settings.");
 
             app.Exit += (_, _) =>
             {
-                hotkey.Dispose();
+                tray?.Dispose();
+                launcherHotkey?.Dispose();
                 registry.StopAllAsync().GetAwaiter().GetResult();
             };
 
@@ -82,13 +128,21 @@ internal static class Program
             };
 
             Console.WriteLine("WinBox host started.");
-            Console.WriteLine("  Shift+Alt+U  open launcher");
-            Console.WriteLine("  Esc          dismiss");
+            Console.WriteLine("  Tray icon     right-click → Index settings / Quit");
+            Console.WriteLine("  Tray double-click → open launcher");
+            if (launcherHotkey is not null)
+            {
+                Console.WriteLine("  Shift+Alt+U  open launcher");
+            }
+
+            Console.WriteLine("  Esc          dismiss launcher");
             Console.WriteLine("  routes: file search | google/gg | math | > cmd | ? ai");
             Console.WriteLine("  Ctrl+C       quit");
         }
         catch (Exception ex)
         {
+            tray?.Dispose();
+            launcherHotkey?.Dispose();
             Console.Error.WriteLine($"Startup failed: {ex}");
             app.Shutdown(1);
         }

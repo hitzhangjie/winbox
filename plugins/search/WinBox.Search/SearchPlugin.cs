@@ -12,12 +12,13 @@ public sealed class SearchPlugin : IWinBoxPlugin, ISearchService, IQueryHandler
     private readonly InMemoryFileIndex _index = new();
     private readonly SubstringSearchEngine _engine = new();
     private readonly DirectoryScanner _scanner = new();
-    private readonly IndexOptions _options;
+    private readonly object _optionsGate = new();
+    private IndexOptions _options;
     private int _started;
 
     public SearchPlugin(IndexOptions? options = null)
     {
-        _options = options ?? new IndexOptions();
+        _options = IndexOptionsStore.Clone(options ?? new IndexOptions());
     }
 
     public string Id => "winbox.search";
@@ -26,8 +27,17 @@ public sealed class SearchPlugin : IWinBoxPlugin, ISearchService, IQueryHandler
 
     public string HandlerId => Id;
 
-    /// <summary>Configured scan options (roots / allow-deny). Settings UI will edit this later.</summary>
-    public IndexOptions Options => _options;
+    /// <summary>Configured scan options (roots / allow-deny).</summary>
+    public IndexOptions Options
+    {
+        get
+        {
+            lock (_optionsGate)
+            {
+                return IndexOptionsStore.Clone(_options);
+            }
+        }
+    }
 
     public int IndexedCount => _index.Count;
 
@@ -47,6 +57,15 @@ public sealed class SearchPlugin : IWinBoxPlugin, ISearchService, IQueryHandler
 
     public bool IsStarted => Interlocked.CompareExchange(ref _started, 0, 0) == 1;
 
+    public void ReplaceOptions(IndexOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        lock (_optionsGate)
+        {
+            _options = IndexOptionsStore.Clone(options);
+        }
+    }
+
     public Task IndexPathsAsync(IEnumerable<string> paths, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -60,10 +79,23 @@ public sealed class SearchPlugin : IWinBoxPlugin, ISearchService, IQueryHandler
         cancellationToken.ThrowIfCancellationRequested();
         EnsureStarted();
 
-        var entries = _scanner.Scan(_options, cancellationToken);
+        IndexOptions options;
+        lock (_optionsGate)
+        {
+            options = IndexOptionsStore.Clone(_options);
+        }
+
+        var entries = _scanner.Scan(options, cancellationToken);
         _index.Clear();
         _index.Upsert(entries);
         return Task.CompletedTask;
+    }
+
+    /// <summary>Replace options and rebuild the in-memory index.</summary>
+    public async Task ApplyOptionsAsync(IndexOptions options, CancellationToken cancellationToken = default)
+    {
+        ReplaceOptions(options);
+        await RebuildIndexAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public Task<IReadOnlyList<SearchHit>> SearchAsync(

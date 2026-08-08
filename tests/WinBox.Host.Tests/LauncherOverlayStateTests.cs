@@ -44,4 +44,15 @@ public sealed class LauncherOverlayStateTests
         Assert.Equal("google maps", raw);
         Assert.Equal("Google", state.ModeLabel);
     }
+
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData(Abstractions.ResultActionKind.None, false)]
+    [InlineData(Abstractions.ResultActionKind.Submit, false)]
+    [InlineData(Abstractions.ResultActionKind.CopyText, true)]
+    [InlineData(Abstractions.ResultActionKind.OpenPath, true)]
+    public void ShouldDismissAfterActivate_SkipsNoneAndSubmit(Abstractions.ResultActionKind? action, bool expected)
+    {
+        Assert.Equal(expected, LauncherQuerySession.ShouldDismissAfterActivate(action));
+    }
 }

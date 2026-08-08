@@ -28,7 +28,7 @@ WinBox 是一个面向 Windows 的轻量宿主应用：核心只做插件发现�
 | 文件名快速搜索 | 按配置 roots 建索引；启动从 SQLite 加载；Watcher/USN 增量；子串匹配 |
 | Listary 风格 File Search | 类型 / 修改时间过滤、展开查看、资源管理器风格图标 |
 | 索引设置 | 托盘 → Index settings；配置写入 `%LocalAppData%\WinBox\` |
-| 工具箱插件 | 计算器、CMD、可配置 Web 前缀搜索（Settings → Web）、AI 骨架 |
+| 工具箱插件 | 计算器、CMD、可配置 Web 前缀搜索（Settings → Web）、AI（`?` 流式，OpenAI 兼容 API，Settings → AI） |
 | 开机自启 | Settings → General → Start with Windows |
 | 质量门禁 | `make test` / `make ci` + GitHub Actions CI |
 | 分发打包 | `make dist` → 便携 zip + Setup 安装包；打 tag / 发 Release 自动挂附件 |
@@ -88,7 +88,7 @@ winbox/
 │   └── WinBox.Host/            # 宿主：热键、唤起层、QueryRouter、托盘与设置
 ├── plugins/
 │   ├── search/WinBox.Search/   # 文件索引 + 搜索（设计见 plugins/search/README.md）
-│   └── toolbox/WinBox.Toolbox/ # 计算器 / CMD / Web / AI 骨架
+│   └── toolbox/WinBox.Toolbox/ # 计算器 / CMD / Web / AI（OpenAI 兼容）
 └── tests/
     ├── WinBox.Host.Tests/
     ├── WinBox.Search.Tests/

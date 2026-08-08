@@ -8,7 +8,7 @@ using Forms = System.Windows.Forms;
 namespace WinBox.Host.Ui;
 
 /// <summary>
-/// Notification-area icon with Open / Settings / Quit. WinForms NotifyIcon hosted inside WPF.
+/// Notification-area icon with Open / Settings / Help / Quit. WinForms NotifyIcon hosted inside WPF.
 /// </summary>
 internal sealed class AppTrayIcon : IDisposable
 {
@@ -29,6 +29,7 @@ internal sealed class AppTrayIcon : IDisposable
 
     public event Action? OpenLauncherRequested;
     public event Action? OpenSettingsRequested;
+    public event Action? OpenHelpRequested;
     public event Action? ExitRequested;
 
     public AppTrayIcon(Dispatcher dispatcher)
@@ -51,6 +52,7 @@ internal sealed class AppTrayIcon : IDisposable
         _menu.Opening += (_, _) => TrayMenuNative.ApplyRoundedWindow(_menu);
         _menu.Items.Add(CreateItem("Open Launcher", RaiseOpen));
         _menu.Items.Add(CreateItem("Open Settings", RaiseSettings));
+        _menu.Items.Add(CreateItem("Help", RaiseHelp));
         _menu.Items.Add(new Forms.ToolStripSeparator
         {
             Margin = new Forms.Padding(12, 6, 12, 6),
@@ -136,6 +138,8 @@ internal sealed class AppTrayIcon : IDisposable
     private void RaiseOpen(object? sender, EventArgs e) => Raise(OpenLauncherRequested);
 
     private void RaiseSettings(object? sender, EventArgs e) => Raise(OpenSettingsRequested);
+
+    private void RaiseHelp(object? sender, EventArgs e) => Raise(OpenHelpRequested);
 
     private void RaiseExit(object? sender, EventArgs e) => Raise(ExitRequested);
 

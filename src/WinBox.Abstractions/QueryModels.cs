@@ -26,7 +26,12 @@ public sealed record QueryResultItem(
     /// Host maps this stable key to a glyph. Prefer <see cref="ResultIconKeys"/> values.
     /// Null = Host falls back to an action glyph.
     /// </summary>
-    string? IconKey = null);
+    string? IconKey = null,
+    /// <summary>
+    /// When true, Host wraps <see cref="Title"/> as a multi-line body and grows the results pane
+    /// (used for AI answers). Default rows stay single-line with ellipsis.
+    /// </summary>
+    bool Multiline = false);
 
 /// <summary>Stable icon vocabulary shared by plugins (content) and Host (chrome).</summary>
 public static class ResultIconKeys
@@ -66,4 +71,8 @@ public enum ResultActionKind
     CopyText = 4,
     /// <summary>Open Explorer with the path selected (containing folder for files).</summary>
     OpenContainingFolder = 5,
+    /// <summary>
+    /// Enter activates the handler (e.g. send AI prompt) without dismissing the overlay.
+    /// </summary>
+    Submit = 6,
 }

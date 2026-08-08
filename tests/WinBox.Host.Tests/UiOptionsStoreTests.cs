@@ -162,6 +162,26 @@ public sealed class ResultRowModelTests
 
         Assert.Null(row.IconImage);
         Assert.Equal(WinBoxTheme.GlyphForIconKey(Abstractions.ResultIconKeys.Calculator), row.Glyph);
+        Assert.False(row.Multiline);
+    }
+
+    [Fact]
+    public void FromResult_Multiline_SkipsHoverTooltip()
+    {
+        var item = new Abstractions.QueryResultItem(
+            "ai-answer",
+            "line1\nline2",
+            Subtitle: "Enter to copy",
+            Payload: "line1\nline2\nline3",
+            Action: Abstractions.ResultActionKind.CopyText,
+            IconKey: Abstractions.ResultIconKeys.Ai,
+            Multiline: true);
+
+        var row = ResultRowModel.FromResult(item);
+
+        Assert.True(row.Multiline);
+        Assert.Equal("line1\nline2", row.Title);
+        Assert.Null(row.ToolTipText);
     }
 }
 

@@ -49,7 +49,7 @@ WinBox.sln
 │   └── WinBox.Host/           ← 宿主：注册插件、QueryRouter、热键与唤起层
 ├── plugins/
 │   ├── search/WinBox.Search/  ← 文件索引 + 搜索（默认路由）
-│   └── toolbox/WinBox.Toolbox/← 计算器 / CMD / Web 前缀 / AI 骨架
+│   └── toolbox/WinBox.Toolbox/← 计算器 / CMD / Web 前缀 / AI（OpenAI 兼容）
 └── tests/                     ← 验证上面几块有没有按合同工作
 ```
 
@@ -106,7 +106,8 @@ WinBox.Host ──────────► WinBox.Abstractions
 | 索引设置面板（托盘 → Settings）+ JSON 配置 | 插件市场与在线更新 |
 | 全局热键 + 托盘 + 唤起层 + QueryRouter | 可配置热键；launcher UI 见 `winbox-ui`（基础已落地；craft 审计见 `craft-audit.md`） |
 | File Search（类型/mtime 过滤、展开、shell 图标） | 预览面板、更多结果动作 |
-| Web 前缀可配置（默认 google/gg、so、yt、x；一行多 keyword）+ Settings → Web | AI 设置面板、LLM 流式 |
+| Web 前缀可配置（默认 google/gg、so、yt、x；一行多 keyword）+ Settings → Web | — |
+| AI（`?` prompt）流式输出 + Settings → AI（base URL / model / API key；OpenAI 兼容，默认本地 Ollama） | 多轮对话 / 工具调用 |
 | 开机自启（Settings → General） | — |
 | 单元测试 + Makefile + GitHub Actions CI | 进程隔离、按需安装插件包 |
 | `make dist` + Dist 工作流（便携 zip + Setup.exe；tag 验证 / Release 挂附件） | Authenticode 签名、winget、MSI |

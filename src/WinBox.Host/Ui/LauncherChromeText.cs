@@ -33,6 +33,11 @@ public static class LauncherChromeText
             return "Esc close  ·  drag to move";
         }
 
+        if (selectedAction == ResultActionKind.Submit)
+        {
+            return "Enter ask AI  ·  Esc close";
+        }
+
         return selectedAction is ResultActionKind.OpenPath or ResultActionKind.OpenContainingFolder
             ? "Enter open  ·  Alt+Enter reveal  ·  Esc close"
             : "Enter activate  ·  Esc close";

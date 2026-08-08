@@ -10,7 +10,7 @@ using WinBox.Toolbox;
 namespace WinBox.Host.Ui;
 
 /// <summary>
-/// Host settings: General, Index, Web searches, Appearance, Shortcuts.
+/// Host settings: General, Index, Web, AI, Appearance, Shortcuts.
 /// </summary>
 internal sealed class IndexSettingsWindow : Window
 {
@@ -19,6 +19,8 @@ internal sealed class IndexSettingsWindow : Window
     private readonly UiOptionsStore _uiStore;
     private readonly WebSearchPlugin _webPlugin;
     private readonly WebSearchOptionsStore _webStore;
+    private readonly AiPlugin _aiPlugin;
+    private readonly AiOptionsStore _aiStore;
     private readonly LoginAutoStart _loginAutoStart;
     private readonly ListBox _rootsList;
     private readonly ListBox _excludeRootsList;
@@ -31,6 +33,9 @@ internal sealed class IndexSettingsWindow : Window
     private readonly CheckBox _startWithWindowsBox;
     private readonly ListBox _webList;
     private readonly List<WebSearchEntry> _webDraft = [];
+    private readonly TextBox _aiBaseUrlBox;
+    private readonly TextBox _aiModelBox;
+    private readonly PasswordBox _aiApiKeyBox;
     private readonly ComboBox _themeBox;
     private readonly Slider _widthSlider;
     private readonly Slider _resultsHeightSlider;
@@ -55,6 +60,8 @@ internal sealed class IndexSettingsWindow : Window
         UiOptionsStore uiStore,
         WebSearchPlugin webPlugin,
         WebSearchOptionsStore webStore,
+        AiPlugin aiPlugin,
+        AiOptionsStore aiStore,
         SettingsTab initialTab = SettingsTab.Index)
     {
         _search = search ?? throw new ArgumentNullException(nameof(search));
@@ -62,6 +69,8 @@ internal sealed class IndexSettingsWindow : Window
         _uiStore = uiStore ?? throw new ArgumentNullException(nameof(uiStore));
         _webPlugin = webPlugin ?? throw new ArgumentNullException(nameof(webPlugin));
         _webStore = webStore ?? throw new ArgumentNullException(nameof(webStore));
+        _aiPlugin = aiPlugin ?? throw new ArgumentNullException(nameof(aiPlugin));
+        _aiStore = aiStore ?? throw new ArgumentNullException(nameof(aiStore));
         _loginAutoStart = new LoginAutoStart();
         Title = "WinBox — Settings";
         Width = 660;
@@ -226,6 +235,25 @@ internal sealed class IndexSettingsWindow : Window
         webForm.Children.Add(Hint("Checkbox = enabled. Saved to " + _webStore.FilePath));
         _tabs.Items.Add(CreateTab("Web", WrapScroll(webForm)));
 
+        var aiForm = new StackPanel();
+        aiForm.Children.Add(SectionLabel("OpenAI-compatible API", first: true));
+        aiForm.Children.Add(Hint(
+            "Type ? then your prompt in the launcher. Works with local Ollama (/v1), DeepSeek, OpenAI, and other compatible providers."));
+        aiForm.Children.Add(SectionLabel("API base URL"));
+        aiForm.Children.Add(Hint("Example (Ollama): http://127.0.0.1:11434/v1"));
+        _aiBaseUrlBox = SettingsChrome.CreateField();
+        aiForm.Children.Add(SettingsChrome.WrapFlat(_aiBaseUrlBox));
+        aiForm.Children.Add(SectionLabel("Model"));
+        aiForm.Children.Add(Hint("Must match a model available on the provider (e.g. gpt-oss:20b, deepseek-chat)."));
+        _aiModelBox = SettingsChrome.CreateField();
+        aiForm.Children.Add(SettingsChrome.WrapFlat(_aiModelBox));
+        aiForm.Children.Add(SectionLabel("API key"));
+        aiForm.Children.Add(Hint("Optional for local Ollama. Required for most cloud providers."));
+        _aiApiKeyBox = CreatePasswordField();
+        aiForm.Children.Add(SettingsChrome.WrapFlat(_aiApiKeyBox));
+        aiForm.Children.Add(Hint("Saved to " + _aiStore.FilePath));
+        _tabs.Items.Add(CreateTab("AI", WrapScroll(aiForm)));
+
         var appearance = new StackPanel();
         appearance.Children.Add(SectionLabel("Theme", first: true));
         appearance.Children.Add(Hint("Applies immediately to the launcher and this window."));
@@ -272,18 +300,14 @@ internal sealed class IndexSettingsWindow : Window
         _tabs.Items.Add(CreateTab("Appearance", WrapScroll(appearance)));
 
         var shortcuts = new StackPanel();
-        shortcuts.Children.Add(SectionLabel("Launcher", first: true));
-        shortcuts.Children.Add(ShortcutRows(
-            ("Shift+Alt+U", "Open launcher"),
-            ("Esc", "Dismiss launcher"),
-            ("↑ / ↓", "Move selection"),
-            ("Enter", "Activate selected result"),
-            ("Alt+Enter", "Reveal path in Explorer")));
+        shortcuts.Children.Add(SectionLabel("What you can type", first: true));
+        shortcuts.Children.Add(Hint(LauncherHelpText.Intro));
+        shortcuts.Children.Add(ShortcutRows(LauncherHelpText.QueryModes));
+        shortcuts.Children.Add(SectionLabel("Launcher"));
+        shortcuts.Children.Add(ShortcutRows(LauncherHelpText.Shortcuts));
         shortcuts.Children.Add(SectionLabel("Tray"));
-        shortcuts.Children.Add(ShortcutRows(
-            ("Double-click", "Open launcher"),
-            ("Right-click", "Settings / Quit")));
-        shortcuts.Children.Add(Hint("Custom hotkeys are not editable yet — tracked for a later release."));
+        shortcuts.Children.Add(ShortcutRows(LauncherHelpText.TrayActions));
+        shortcuts.Children.Add(Hint("Also available from tray → Help. Custom hotkeys are not editable yet."));
         _tabs.Items.Add(CreateTab("Shortcuts", WrapScroll(shortcuts)));
 
         _tabs.SelectionChanged += (_, _) =>
@@ -300,6 +324,7 @@ internal sealed class IndexSettingsWindow : Window
 
         LoadFromOptions(_search.Options);
         LoadWebFromOptions(_webPlugin.Options);
+        LoadAiFromOptions(_aiPlugin.Options);
         LoadGeneralFromStore();
         LoadAppearanceFromStore();
         _tabs.SelectedIndex = (int)initialTab;
@@ -312,7 +337,7 @@ internal sealed class IndexSettingsWindow : Window
     private void RefreshSaveButtonForTab()
     {
         var tab = (SettingsTab)_tabs.SelectedIndex;
-        var showSave = tab is SettingsTab.Index or SettingsTab.Web;
+        var showSave = tab is SettingsTab.Index or SettingsTab.Web or SettingsTab.Ai;
         _saveButton.Visibility = showSave ? Visibility.Visible : Visibility.Collapsed;
         _saveButton.Content = tab == SettingsTab.Index ? "Save & rebuild" : "Save";
     }
@@ -323,8 +348,9 @@ internal sealed class IndexSettingsWindow : Window
             ? "Will start with Windows sign-in."
             : "Won't start automatically.",
         SettingsTab.Web => $"Web searches · {_webStore.FilePath}",
+        SettingsTab.Ai => $"AI · {_aiStore.FilePath}",
         SettingsTab.Appearance => $"Appearance · {_uiStore.FilePath}",
-        SettingsTab.Shortcuts => "Keyboard & tray reference",
+        SettingsTab.Shortcuts => "What you can type · keyboard & tray",
         _ => $"Index config: {_indexStore.FilePath}",
     };
 
@@ -541,6 +567,9 @@ internal sealed class IndexSettingsWindow : Window
         SettingsChrome.StyleEmbeddedField(_excludePatternsBox);
         SettingsChrome.StyleEmbeddedField(_indexStoreDirBox);
         SettingsChrome.StyleEmbeddedField(_maxMemoryMbBox);
+        SettingsChrome.StyleEmbeddedField(_aiBaseUrlBox);
+        SettingsChrome.StyleEmbeddedField(_aiModelBox);
+        StylePasswordField(_aiApiKeyBox);
         SettingsChrome.StyleEmbeddedList(_rootsList);
         SettingsChrome.StyleEmbeddedList(_excludeRootsList);
         SettingsChrome.StyleEmbeddedList(_webList);
@@ -695,13 +724,51 @@ internal sealed class IndexSettingsWindow : Window
 
     private async Task SaveCurrentTabAsync()
     {
-        if ((SettingsTab)_tabs.SelectedIndex == SettingsTab.Web)
+        var tab = (SettingsTab)_tabs.SelectedIndex;
+        if (tab == SettingsTab.Web)
         {
             SaveWebSearches();
             return;
         }
 
+        if (tab == SettingsTab.Ai)
+        {
+            SaveAiOptions();
+            return;
+        }
+
         await SaveAndRebuildAsync().ConfigureAwait(true);
+    }
+
+    private void LoadAiFromOptions(AiOptions options)
+    {
+        var normalized = AiOptionsStore.Normalize(options);
+        _aiBaseUrlBox.Text = normalized.BaseUrl;
+        _aiModelBox.Text = normalized.Model;
+        _aiApiKeyBox.Password = normalized.ApiKey;
+    }
+
+    private void SaveAiOptions()
+    {
+        try
+        {
+            var options = AiOptionsStore.Normalize(new AiOptions
+            {
+                BaseUrl = _aiBaseUrlBox.Text ?? string.Empty,
+                Model = _aiModelBox.Text ?? string.Empty,
+                ApiKey = _aiApiKeyBox.Password ?? string.Empty,
+            });
+
+            _aiStore.Save(options);
+            _aiPlugin.ApplyOptions(options);
+            LoadAiFromOptions(options);
+            UpdateStatus($"AI saved · {options.Model} @ {options.BaseUrl}");
+        }
+        catch (Exception ex)
+        {
+            UpdateStatus($"Save failed: {ex.Message}");
+            MessageBox.Show(this, ex.Message, "WinBox settings", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void LoadWebFromOptions(WebSearchOptions options, int? preferSelectIndex = null)
@@ -1004,13 +1071,13 @@ internal sealed class IndexSettingsWindow : Window
         return scroll;
     }
 
-    private static UIElement ShortcutRows(params (string Keys, string Description)[] rows)
+    private static UIElement ShortcutRows(IReadOnlyList<(string Keys, string Description)> rows)
     {
         var stack = new StackPanel { Margin = new Thickness(0, 2, 0, 4) };
-        for (var i = 0; i < rows.Length; i++)
+        for (var i = 0; i < rows.Count; i++)
         {
             var (keys, description) = rows[i];
-            stack.Children.Add(ShortcutRow(keys, description, last: i == rows.Length - 1));
+            stack.Children.Add(ShortcutRow(keys, description, last: i == rows.Count - 1));
         }
 
         return stack;
@@ -1022,10 +1089,11 @@ internal sealed class IndexSettingsWindow : Window
         var key = new TextBlock
         {
             Text = keys,
-            Width = 128,
+            Width = 148,
             FontWeight = FontWeights.SemiBold,
             Foreground = WinBoxTheme.AccentBrush,
-            VerticalAlignment = VerticalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Top,
+            TextWrapping = TextWrapping.Wrap,
             Tag = "shortcut-key",
         };
         DockPanel.SetDock(key, Dock.Left);
@@ -1034,9 +1102,9 @@ internal sealed class IndexSettingsWindow : Window
         {
             Text = description,
             Foreground = WinBoxTheme.TextPrimaryBrush,
-            VerticalAlignment = VerticalAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
-            Tag = "body",
+            VerticalAlignment = VerticalAlignment.Top,
+            Tag = "shortcut-desc",
         });
         return row;
     }
@@ -1060,6 +1128,32 @@ internal sealed class IndexSettingsWindow : Window
         TextWrapping = TextWrapping.Wrap,
         Tag = "hint",
     };
+
+    private static PasswordBox CreatePasswordField()
+    {
+        var box = new PasswordBox
+        {
+            FontFamily = WinBoxTheme.UiFont,
+            FontSize = WinBoxTheme.FontSubtitle,
+            Padding = new Thickness(10, 8, 10, 8),
+            BorderThickness = new Thickness(0),
+            Background = Brushes.Transparent,
+            Foreground = WinBoxTheme.TextPrimaryBrush,
+            CaretBrush = WinBoxTheme.TextPrimaryBrush,
+            FocusVisualStyle = null,
+        };
+        StylePasswordField(box);
+        return box;
+    }
+
+    private static void StylePasswordField(PasswordBox box)
+    {
+        box.Background = Brushes.Transparent;
+        box.Foreground = WinBoxTheme.TextPrimaryBrush;
+        box.CaretBrush = WinBoxTheme.TextPrimaryBrush;
+        box.BorderThickness = new Thickness(0);
+        box.FontFamily = WinBoxTheme.UiFont;
+    }
 
     private static StackPanel PathListButtons(
         Action add,

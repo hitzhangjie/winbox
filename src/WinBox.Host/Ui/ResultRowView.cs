@@ -23,13 +23,17 @@ public sealed class ResultRowModel
     /// <summary>Explorer-style shell icon when the payload is a file path; null uses <see cref="Glyph"/>.</summary>
     public ImageSource? IconImage { get; init; }
 
+    /// <summary>Wrap title as a growing multi-line body (AI answers).</summary>
+    public bool Multiline { get; init; }
+
     public string Glyph => WinBoxTheme.GlyphForResult(IconKey, Action);
 
     public static ResultRowModel FromResult(QueryResultItem item)
     {
         ArgumentNullException.ThrowIfNull(item);
         var subtitle = string.IsNullOrWhiteSpace(item.Subtitle) ? null : item.Subtitle;
-        var tip = subtitle ?? item.Title;
+        // Multiline AI body is already fully visible in-row — no hover popup.
+        var tip = item.Multiline ? null : (subtitle ?? item.Title);
         var path = ResolvePathHint(item);
         return new ResultRowModel
         {
@@ -39,6 +43,7 @@ public sealed class ResultRowModel
             Action = item.Action,
             IconKey = string.IsNullOrWhiteSpace(item.IconKey) ? null : item.IconKey,
             IconImage = path is null ? null : ShellFileIcons.GetForPath(path),
+            Multiline = item.Multiline,
         };
     }
 
@@ -107,6 +112,12 @@ public sealed class ResultRowView : Grid
         typeof(ResultRowView),
         new PropertyMetadata(null, OnIconImageChanged));
 
+    public static readonly DependencyProperty MultilineProperty = DependencyProperty.Register(
+        nameof(Multiline),
+        typeof(bool),
+        typeof(ResultRowView),
+        new PropertyMetadata(false, OnMultilineChanged));
+
     private readonly Image _icon;
     private readonly TextBlock _glyph;
     private readonly TextBlock _title;
@@ -171,6 +182,7 @@ public sealed class ResultRowView : Grid
         Children.Add(textStack);
         ApplyThemeBrushes();
         SyncIconPresentation();
+        ApplyMultilineLayout();
     }
 
     public void ApplyThemeBrushes()
@@ -206,6 +218,12 @@ public sealed class ResultRowView : Grid
         set => SetValue(IconImageProperty, value);
     }
 
+    public bool Multiline
+    {
+        get => (bool)GetValue(MultilineProperty);
+        set => SetValue(MultilineProperty, value);
+    }
+
     public static DataTemplate CreateListTemplate()
     {
         var template = new DataTemplate(typeof(ResultRowModel));
@@ -214,6 +232,7 @@ public sealed class ResultRowView : Grid
         factory.SetBinding(SubtitleProperty, new Binding(nameof(ResultRowModel.Subtitle)));
         factory.SetBinding(GlyphProperty, new Binding(nameof(ResultRowModel.Glyph)));
         factory.SetBinding(IconImageProperty, new Binding(nameof(ResultRowModel.IconImage)));
+        factory.SetBinding(MultilineProperty, new Binding(nameof(ResultRowModel.Multiline)));
         factory.SetBinding(ToolTipProperty, new Binding(nameof(ResultRowModel.ToolTipText)));
         template.VisualTree = factory;
         return template;
@@ -232,6 +251,33 @@ public sealed class ResultRowView : Grid
             _icon.Source = null;
             _icon.Visibility = Visibility.Collapsed;
             _glyph.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void ApplyMultilineLayout()
+    {
+        if (Multiline)
+        {
+            _title.TextWrapping = TextWrapping.Wrap;
+            _title.TextTrimming = TextTrimming.None;
+            // No MaxHeight here — the results ListBox caps height and scrolls (settings-style bar).
+            _title.MaxHeight = double.PositiveInfinity;
+            _glyph.VerticalAlignment = VerticalAlignment.Top;
+            _icon.VerticalAlignment = VerticalAlignment.Top;
+            _glyph.Margin = new Thickness(0, 4, 8, 0);
+            _icon.Margin = new Thickness(0, 4, 8, 0);
+            Margin = new Thickness(0, 2, 0, 2);
+        }
+        else
+        {
+            _title.TextWrapping = TextWrapping.NoWrap;
+            _title.TextTrimming = TextTrimming.CharacterEllipsis;
+            _title.MaxHeight = double.PositiveInfinity;
+            _glyph.VerticalAlignment = VerticalAlignment.Center;
+            _icon.VerticalAlignment = VerticalAlignment.Center;
+            _glyph.Margin = new Thickness(0, 0, 8, 0);
+            _icon.Margin = new Thickness(0, 0, 8, 0);
+            Margin = new Thickness(0);
         }
     }
 
@@ -276,6 +322,14 @@ public sealed class ResultRowView : Grid
         if (d is ResultRowView row)
         {
             row.SyncIconPresentation();
+        }
+    }
+
+    private static void OnMultilineChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is ResultRowView row)
+        {
+            row.ApplyMultilineLayout();
         }
     }
 }

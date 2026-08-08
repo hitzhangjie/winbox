@@ -95,6 +95,7 @@ public static class WinBoxTheme
         Abstractions.ResultActionKind.CopyText => "\uE8C8",
         Abstractions.ResultActionKind.OpenContainingFolder => "\uE8B7",
         Abstractions.ResultActionKind.OpenPath => "\uE8A5",
+        Abstractions.ResultActionKind.Submit => "\uE99A",
         _ => "\uE721",
     };
 

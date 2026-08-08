@@ -25,6 +25,8 @@ internal static class Program
         var uiOptions = uiStore.LoadOrDefault();
         var webStore = new WebSearchOptionsStore(WebSearchOptionsStore.DefaultFilePath);
         var webOptions = webStore.LoadOrDefault();
+        var aiStore = new AiOptionsStore(AiOptionsStore.DefaultFilePath);
+        var aiOptions = aiStore.LoadOrDefault();
         WinBoxTheme.Apply(WinBoxTheme.ParseTheme(uiOptions.Theme));
         UiLayout.Apply(uiOptions);
         TrySyncLoginAutoStart(uiOptions.StartWithWindows);
@@ -32,18 +34,20 @@ internal static class Program
         var registry = new PluginRegistry();
         var searchPlugin = new SearchPlugin(indexOptions);
         var webPlugin = new WebSearchPlugin(webOptions.Entries);
+        var aiPlugin = new AiPlugin(aiOptions);
         registry.Register(searchPlugin);
         registry.Register(new CalculatorPlugin());
         registry.Register(new ShellPlugin());
         registry.Register(webPlugin);
-        registry.Register(new AiPlugin());
+        registry.Register(aiPlugin);
 
         var app = new Application
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown,
         };
 
-        app.Startup += (_, _) => OnStartup(app, registry, searchPlugin, optionsStore, uiStore, webPlugin, webStore);
+        app.Startup += (_, _) => OnStartup(
+            app, registry, searchPlugin, optionsStore, uiStore, webPlugin, webStore, aiPlugin, aiStore);
 
         app.Run();
     }
@@ -55,7 +59,9 @@ internal static class Program
         IndexOptionsStore optionsStore,
         UiOptionsStore uiStore,
         WebSearchPlugin webPlugin,
-        WebSearchOptionsStore webStore)
+        WebSearchOptionsStore webStore,
+        AiPlugin aiPlugin,
+        AiOptionsStore aiStore)
     {
         AppTrayIcon? tray = null;
         GlobalHotkey? launcherHotkey = null;
@@ -77,6 +83,7 @@ internal static class Program
             _ = new WindowInteropHelper(overlay).EnsureHandle();
 
             IndexSettingsWindow? settingsWindow = null;
+            LauncherHelpWindow? helpWindow = null;
             FileSearchWindow? fileSearchWindow = null;
 
             void OpenFileSearch(string? seedQuery)
@@ -109,13 +116,29 @@ internal static class Program
                     uiStore,
                     webPlugin,
                     webStore,
+                    aiPlugin,
+                    aiStore,
                     tab);
                 settingsWindow.Closed += (_, _) => settingsWindow = null;
                 settingsWindow.Show();
                 BringSettingsToFront(settingsWindow);
             }
 
-            static void BringSettingsToFront(Window window)
+            void OpenHelp()
+            {
+                if (helpWindow is { IsLoaded: true })
+                {
+                    BringWindowToFront(helpWindow);
+                    return;
+                }
+
+                helpWindow = new LauncherHelpWindow();
+                helpWindow.Closed += (_, _) => helpWindow = null;
+                helpWindow.Show();
+                BringWindowToFront(helpWindow);
+            }
+
+            static void BringWindowToFront(Window window)
             {
                 if (window.WindowState == WindowState.Minimized)
                 {
@@ -128,6 +151,8 @@ internal static class Program
                 window.Topmost = false;
                 _ = window.Focus();
             }
+
+            void BringSettingsToFront(Window window) => BringWindowToFront(window);
 
             try
             {
@@ -147,12 +172,13 @@ internal static class Program
             tray = new AppTrayIcon(overlay.Dispatcher);
             tray.OpenLauncherRequested += () => overlay.ActivateOverlay();
             tray.OpenSettingsRequested += () => OpenSettings(SettingsTab.Index);
+            tray.OpenHelpRequested += OpenHelp;
             tray.ExitRequested += () => app.Shutdown();
             tray.ShowBalloon(
                 "WinBox",
                 ready.Kind == IndexReadyKind.LoadedFromStore
-                    ? $"Ready — {ready.Count} files loaded from store. Right-click tray for Settings."
-                    : $"Ready — {ready.Count} files indexed. Right-click tray for Settings.");
+                    ? $"Ready — {ready.Count} files loaded from store. Right-click tray for Help."
+                    : $"Ready — {ready.Count} files indexed. Right-click tray for Help.");
 
             app.Exit += (_, _) =>
             {
@@ -168,7 +194,7 @@ internal static class Program
             };
 
             Console.WriteLine("WinBox host started.");
-            Console.WriteLine("  Tray icon     right-click → Settings / Quit");
+            Console.WriteLine("  Tray icon     right-click → Settings / Help / Quit");
             Console.WriteLine("  Tray double-click → open launcher");
             if (launcherHotkey is not null)
             {
@@ -177,6 +203,7 @@ internal static class Program
 
             Console.WriteLine("  Esc          dismiss launcher");
             Console.WriteLine("  routes: file search | web keywords (gg/so/yt/x…) | math | > cmd | ? ai");
+            Console.WriteLine("  Help         tray → Help (what you can type)");
             Console.WriteLine("  Ctrl+C       quit");
         }
         catch (Exception ex)

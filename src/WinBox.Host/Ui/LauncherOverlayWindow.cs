@@ -36,6 +36,9 @@ internal sealed class LauncherOverlayWindow : Window
     private bool _syncingUi;
     private bool _suppressPersist;
     private bool _dismissing;
+    private bool _streamFollowPinned = true;
+    private bool _ignoreStreamScroll;
+    private ScrollViewer? _resultsScroll;
 
     /// <summary>Raised when the user clicks the File Search expand affordance.</summary>
     public event Action<string>? OpenFileSearchRequested;
@@ -158,11 +161,9 @@ internal sealed class LauncherOverlayWindow : Window
             ItemContainerStyle = CreateResultItemStyle(),
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
         };
-        // Attached scroll policy: vertical only — never grow width for long paths.
-        ScrollViewer.SetHorizontalScrollBarVisibility(_results, ScrollBarVisibility.Disabled);
-        ScrollViewer.SetVerticalScrollBarVisibility(_results, UiLayout.ToVisibility(UiLayout.ScrollBarMode));
-        ScrollViewer.SetCanContentScroll(_results, true);
-        ThemedScrollBars.Apply(_results);
+        // Vertical themed scrollbar (settings-style); pixel scroll for tall AI bodies.
+        LauncherResultsScroll.Configure(_results);
+        _results.Loaded += (_, _) => EnsureResultsScrollHooked();
 
         _results.SelectionChanged += (_, _) =>
         {
@@ -176,8 +177,17 @@ internal sealed class LauncherOverlayWindow : Window
         };
         _results.MouseDoubleClick += async (_, _) =>
         {
+            var action = _state.SelectedItem?.Action;
+            if (action is null or ResultActionKind.None)
+            {
+                return;
+            }
+
             await _session.ActivateSelectedAsync().ConfigureAwait(true);
-            DismissOverlay();
+            if (LauncherQuerySession.ShouldDismissAfterActivate(action))
+            {
+                DismissOverlay();
+            }
         };
 
         _emptyTitle = new TextBlock
@@ -267,8 +277,7 @@ internal sealed class LauncherOverlayWindow : Window
         _emptyTitle.FontSize = UiLayout.FontTitle;
         _emptyDetail.FontSize = UiLayout.FontSubtitle;
         _footerText.FontSize = UiLayout.FontFooter;
-        ScrollViewer.SetVerticalScrollBarVisibility(_results, UiLayout.ToVisibility(UiLayout.ScrollBarMode));
-        ThemedScrollBars.Apply(_results);
+        LauncherResultsScroll.Configure(_results);
         _results.ItemTemplate = ResultRowView.CreateListTemplate();
         SyncFromState();
     }
@@ -294,7 +303,7 @@ internal sealed class LauncherOverlayWindow : Window
             _results.Foreground = WinBoxTheme.TextPrimaryBrush;
             _results.ItemContainerStyle = CreateResultItemStyle();
             _results.ItemTemplate = ResultRowView.CreateListTemplate();
-            ThemedScrollBars.Apply(_results);
+            LauncherResultsScroll.Configure(_results);
             _emptyTitle.Foreground = WinBoxTheme.TextPrimaryBrush;
             _emptyDetail.Foreground = WinBoxTheme.TextSecondaryBrush;
             _footerText.Foreground = WinBoxTheme.TextSecondaryBrush;
@@ -306,6 +315,7 @@ internal sealed class LauncherOverlayWindow : Window
     public void ActivateOverlay()
     {
         _dismissing = false;
+        _streamFollowPinned = true;
         BeginAnimation(OpacityProperty, null);
         Opacity = 1;
 
@@ -322,6 +332,10 @@ internal sealed class LauncherOverlayWindow : Window
             Show();
             _suppressPersist = false;
             WindowEffects.FadeIn(this);
+        }
+        else
+        {
+            ApplyBaseOverlayWidth();
         }
 
         Activate();
@@ -465,9 +479,20 @@ internal sealed class LauncherOverlayWindow : Window
 
         if (key == Key.Enter)
         {
-            await _session.ActivateSelectedAsync(ResolveEnterActionOverride()).ConfigureAwait(true);
-            DismissOverlay();
             e.Handled = true;
+            var action = ResolveEnterActionOverride() ?? _state.SelectedItem?.Action;
+            // Idle / streaming (None): keep overlay open, do nothing.
+            if (action is null or ResultActionKind.None)
+            {
+                return;
+            }
+
+            await _session.ActivateSelectedAsync(ResolveEnterActionOverride()).ConfigureAwait(true);
+            // Submit (send AI) stays open to show the stream; CopyText / open dismiss.
+            if (LauncherQuerySession.ShouldDismissAfterActivate(action))
+            {
+                DismissOverlay();
+            }
         }
     }
 
@@ -532,7 +557,11 @@ internal sealed class LauncherOverlayWindow : Window
                 if (_state.SelectedIndex >= 0 && _state.SelectedIndex < _results.Items.Count)
                 {
                     _results.SelectedIndex = _state.SelectedIndex;
-                    _results.ScrollIntoView(_results.SelectedItem);
+                    // Tall multiline AI rows use pixel scroll; ScrollIntoView fights the stream follow.
+                    if (!_state.Results.Any(static r => r.Multiline))
+                    {
+                        _results.ScrollIntoView(_results.SelectedItem);
+                    }
                 }
             }
             else if (hasQuery)
@@ -552,11 +581,191 @@ internal sealed class LauncherOverlayWindow : Window
 
             RefreshFooter();
             RefreshDivider();
+            if (string.Equals(_state.SelectedItem?.Id, "ai-pending", StringComparison.Ordinal))
+            {
+                _streamFollowPinned = true;
+            }
+
+            ApplyOverlayWidthForResults();
+            RelayoutOverlayHeight();
+            EnsureResultsScrollHooked();
+            FollowMultilineStreamScroll();
         }
         finally
         {
             _syncingUi = false;
         }
+    }
+
+    /// <summary>
+    /// Widen the overlay for multiline AI bodies up to 1.5× the configured base width.
+    /// Resets to base when not showing multiline content.
+    /// </summary>
+    private void ApplyOverlayWidthForResults()
+    {
+        var baseWidth = UiLayout.OverlayWidth;
+        var contentWidth = baseWidth;
+        var multiline = _state.Results.FirstOrDefault(static r => r.Multiline);
+        if (multiline is not null && !string.IsNullOrWhiteSpace(multiline.Title))
+        {
+            var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+            var estimated = LauncherOverlayFit.EstimatePreferredContentWidth(
+                multiline.Title,
+                UiLayout.FontTitle,
+                WinBoxTheme.UiFont,
+                dpi);
+            contentWidth = LauncherOverlayFit.ClampContentWidth(baseWidth, estimated);
+        }
+
+        var target = contentWidth + (WinBoxTheme.OverlayShadowPad * 2);
+        if (Math.Abs(Width - target) > 0.5)
+        {
+            Width = target;
+        }
+    }
+
+    private void ApplyBaseOverlayWidth()
+    {
+        Width = UiLayout.OverlayWidth + (WinBoxTheme.OverlayShadowPad * 2);
+    }
+
+    /// <summary>
+    /// While AI is streaming and the user has not scrolled away, keep the viewport at the bottom.
+    /// </summary>
+    private void FollowMultilineStreamScroll()
+    {
+        if (_dismissing
+            || !IsVisible
+            || _results.Visibility != Visibility.Visible
+            || _state.SelectedItem is not { Multiline: true, Action: ResultActionKind.None } item)
+        {
+            return;
+        }
+
+        if (!LauncherOverlayFit.ShouldFollowStream(_streamFollowPinned, isStreamingMultiline: true))
+        {
+            return;
+        }
+
+        // Pending / streaming ids only — finished CopyText answers stay where the user left them.
+        if (item.Id is not ("ai-pending" or "ai-stream"))
+        {
+            return;
+        }
+
+        Dispatcher.BeginInvoke(
+            () =>
+            {
+                if (_dismissing || !IsVisible || !_streamFollowPinned)
+                {
+                    return;
+                }
+
+                var scroll = FindDescendantScrollViewer(_results);
+                if (scroll is null)
+                {
+                    return;
+                }
+
+                _ignoreStreamScroll = true;
+                try
+                {
+                    scroll.ScrollToVerticalOffset(scroll.ScrollableHeight);
+                }
+                finally
+                {
+                    _ignoreStreamScroll = false;
+                }
+            },
+            DispatcherPriority.Loaded);
+    }
+
+    private void EnsureResultsScrollHooked()
+    {
+        var scroll = FindDescendantScrollViewer(_results);
+        if (scroll is null || ReferenceEquals(scroll, _resultsScroll))
+        {
+            return;
+        }
+
+        if (_resultsScroll is not null)
+        {
+            _resultsScroll.ScrollChanged -= OnResultsScrollChanged;
+        }
+
+        _resultsScroll = scroll;
+        _resultsScroll.ScrollChanged += OnResultsScrollChanged;
+    }
+
+    private void OnResultsScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (_syncingUi || _ignoreStreamScroll || _dismissing || !_streamFollowPinned)
+        {
+            return;
+        }
+
+        // Stream appends grow ExtentHeight without a user scroll — don't unpin.
+        if (e.ExtentHeightChange != 0 && e.VerticalChange == 0)
+        {
+            return;
+        }
+
+        // Ignore no-op layout noise.
+        if (e.VerticalChange == 0 && e.ViewportHeightChange == 0)
+        {
+            return;
+        }
+
+        if (sender is not ScrollViewer scroll)
+        {
+            return;
+        }
+
+        // User scrolled away from the bottom — stop auto-follow for the rest of this stream.
+        if (!LauncherOverlayFit.IsNearBottom(scroll.VerticalOffset, scroll.ViewportHeight, scroll.ExtentHeight))
+        {
+            _streamFollowPinned = false;
+        }
+    }
+
+    private static ScrollViewer? FindDescendantScrollViewer(DependencyObject root)
+    {
+        if (root is ScrollViewer self)
+        {
+            return self;
+        }
+
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            var found = FindDescendantScrollViewer(VisualTreeHelper.GetChild(root, i));
+            if (found is not null)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// <see cref="SizeToContent.Height"/> often sticks after content changes; nudge measure so
+    /// streaming / multi-line AI rows expand within <see cref="UiLayout.ResultsMaxHeight"/>.
+    /// </summary>
+    private void RelayoutOverlayHeight()
+    {
+        if (!IsVisible || _dismissing)
+        {
+            return;
+        }
+
+        // Keep the results pane hard-capped so the overlay cannot grow without limit.
+        _results.MaxHeight = UiLayout.ResultsMaxHeight;
+
+        SizeToContent = SizeToContent.Manual;
+        InvalidateMeasure();
+        UpdateLayout();
+        SizeToContent = SizeToContent.Height;
     }
 
     private void RefreshFooter()
@@ -707,7 +916,8 @@ internal sealed class LauncherOverlayWindow : Window
         {
             OverlayLeft = Left,
             OverlayTop = Top,
-            OverlayWidth = Math.Max(400, Width - (WinBoxTheme.OverlayShadowPad * 2)),
+            // Persist the configured base width — not a temporary AI widen.
+            OverlayWidth = UiLayout.OverlayWidth,
             ResultsMaxHeight = current.ResultsMaxHeight,
             FontInput = current.FontInput,
             FontTitle = current.FontTitle,

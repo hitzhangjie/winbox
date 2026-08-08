@@ -149,11 +149,42 @@ public sealed class LauncherChromeTextTests
     [Theory]
     [InlineData(ResultActionKind.OpenPath, true, "Alt+Enter")]
     [InlineData(ResultActionKind.CopyText, true, "Enter activate")]
+    [InlineData(ResultActionKind.Submit, true, "Enter ask AI")]
     [InlineData(ResultActionKind.None, false, "Esc close")]
     public void FooterFor_MatchesSelectionContext(ResultActionKind action, bool hasResults, string expectedFragment)
     {
         var footer = LauncherChromeText.FooterFor(hasResults ? action : null, hasResults);
         Assert.Contains(expectedFragment, footer);
+    }
+}
+
+public sealed class LauncherHelpTextTests
+{
+    [Fact]
+    public void QueryModes_CoverFileWebCalcShellAndAi()
+    {
+        var blob = string.Join('\n', LauncherHelpText.QueryModeLines());
+        Assert.Contains("filename", blob, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("gg", blob, StringComparison.Ordinal);
+        Assert.Contains("1+2*3", blob, StringComparison.Ordinal);
+        Assert.Contains("> command", blob, StringComparison.Ordinal);
+        Assert.Contains("? prompt", blob, StringComparison.Ordinal);
+        Assert.Contains("Enter", blob, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Shortcuts_IncludeSummonAndActivate()
+    {
+        Assert.Contains(LauncherHelpText.Shortcuts, s => s.Keys == "Shift+Alt+U");
+        Assert.Contains(LauncherHelpText.Shortcuts, s => s.Keys == "Enter");
+        Assert.Contains(LauncherHelpText.TrayActions, t => t.Description.Contains("Help", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void WindowTitle_IsStable()
+    {
+        Assert.Equal("WinBox Help", LauncherHelpText.WindowTitle);
+        Assert.False(string.IsNullOrWhiteSpace(LauncherHelpText.Intro));
     }
 }
 

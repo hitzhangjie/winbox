@@ -51,4 +51,7 @@ public sealed class UiOptions
 
     /// <summary>Start WinBox when the user signs in to Windows (HKCU Run).</summary>
     public bool StartWithWindows { get; set; }
+
+    /// <summary>Show a file-search strip under standard Open/Save dialogs.</summary>
+    public bool FileDialogAssistEnabled { get; set; } = true;
 }

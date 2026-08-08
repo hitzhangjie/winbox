@@ -187,9 +187,17 @@ public sealed class ResultRowView : Grid
 
     public void ApplyThemeBrushes()
     {
-        _glyph.Foreground = WinBoxTheme.TextSecondaryBrush;
-        _title.Foreground = WinBoxTheme.TextPrimaryBrush;
-        _subtitle.Foreground = WinBoxTheme.TextSecondaryBrush;
+        ApplyThemeBrushes(WinBoxTheme.TextPrimaryBrush, WinBoxTheme.TextSecondaryBrush);
+    }
+
+    /// <summary>Applies explicit text brushes (e.g. system-aligned palette on the file-dialog strip).</summary>
+    public void ApplyThemeBrushes(Brush textPrimary, Brush textSecondary)
+    {
+        ArgumentNullException.ThrowIfNull(textPrimary);
+        ArgumentNullException.ThrowIfNull(textSecondary);
+        _glyph.Foreground = textSecondary;
+        _title.Foreground = textPrimary;
+        _subtitle.Foreground = textSecondary;
         _title.FontSize = UiLayout.FontTitle;
         _subtitle.FontSize = UiLayout.FontSubtitle;
     }

@@ -42,6 +42,7 @@ for any behavior that affects activation, hotkeys, or result actions.
 | Theme tokens, result row template, scroll policy | Host shell (shared) |
 | Tray icon asset + menu | Host |
 | Settings window chrome + layout patterns | Host |
+| Open/Save dialog assist strip (file search only) | Host `Ui/DialogAssist/` — system light/dark palette; not launcher QueryRouter |
 | Result *data*: Title, Subtitle, Payload, Action | Plugins via `QueryResultItem` |
 | Search-specific empty hints / index status copy | Search plugin → Host binds |
 

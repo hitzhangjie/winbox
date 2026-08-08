@@ -106,9 +106,10 @@ WinBox.Host ──────────► WinBox.Abstractions
 | 索引设置面板（托盘 → Settings）+ JSON 配置 | 插件市场与在线更新 |
 | 全局热键 + 托盘 + 唤起层 + QueryRouter | 可配置热键；launcher UI 见 `winbox-ui`（基础已落地；craft 审计见 `craft-audit.md`） |
 | File Search（类型/mtime 过滤、展开、shell 图标） | 预览面板、更多结果动作 |
+| Open / 另存为对话框助手（Host `Ui/DialogAssist/`；仅文件搜索；回填路径） | 普通 Explorer 文件夹窗口挂接、自动点 Open、自定义选择器 |
 | Web 前缀可配置（默认 google/gg、so、yt、x；一行多 keyword）+ Settings → Web | — |
 | AI（`?` prompt）流式输出 + Settings → AI（base URL / model / API key；OpenAI 兼容，默认本地 Ollama） | 多轮对话 / 工具调用 |
-| 开机自启（Settings → General） | — |
+| 开机自启 + 对话框助手开关（Settings → General） | — |
 | 单元测试 + Makefile + GitHub Actions CI | 进程隔离、按需安装插件包 |
 | `make dist` + Dist 工作流（便携 zip + Setup.exe；tag 验证 / Release 挂附件） | Authenticode 签名、winget、MSI |
 
@@ -122,6 +123,7 @@ WinBox.Host ──────────► WinBox.Abstractions
 |------------|-------------|
 | 改插件合同（启停、搜索、查询分流） | `src/WinBox.Abstractions/`，并同步改实现与测试 |
 | 改宿主注册、启停、热键 / 唤起层 / Router / 索引设置窗 | `src/WinBox.Host/`（UI 在 `Ui/`，路由在 `Query/`）；视觉与交互规范见 `.cursor/skills/winbox-ui` |
+| 改 Open/另存为贴底搜索（检测、回填、贴条） | `src/WinBox.Host/Ui/DialogAssist/`（直连 `ISearchService`，不经 QueryRouter） |
 | 改索引存储、扫描、配置持久化 | `plugins/search/WinBox.Search/Index/` |
 | 改匹配、排序、查询行为 | `plugins/search/WinBox.Search/Query/` |
 | 改搜索插件对外行为 | `plugins/search/WinBox.Search/SearchPlugin.cs` |

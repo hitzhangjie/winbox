@@ -86,6 +86,7 @@ public sealed class UiOptionsStore
             ScrollBarMode = UiLayout.ToStorage(UiLayout.ParseScrollBarMode(options.ScrollBarMode)),
             Theme = WinBoxTheme.ToStorage(WinBoxTheme.ParseTheme(options.Theme)),
             StartWithWindows = options.StartWithWindows,
+            FileDialogAssistEnabled = options.FileDialogAssistEnabled,
         };
     }
 

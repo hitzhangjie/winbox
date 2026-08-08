@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using WinBox.Host.Query;
 using WinBox.Host.Ui;
+using WinBox.Host.Ui.DialogAssist;
 using WinBox.Search;
 using WinBox.Search.Index;
 using WinBox.Toolbox;
@@ -65,6 +66,7 @@ internal static class Program
     {
         AppTrayIcon? tray = null;
         GlobalHotkey? launcherHotkey = null;
+        FileDialogAssistController? dialogAssist = null;
 
         try
         {
@@ -81,6 +83,8 @@ internal static class Program
             var session = new LauncherQuerySession(router, overlayState);
             var overlay = new LauncherOverlayWindow(overlayState, session, uiStore);
             _ = new WindowInteropHelper(overlay).EnsureHandle();
+
+            dialogAssist = new FileDialogAssistController(searchPlugin, uiStore, overlay.Dispatcher);
 
             IndexSettingsWindow? settingsWindow = null;
             LauncherHelpWindow? helpWindow = null;
@@ -118,7 +122,8 @@ internal static class Program
                     webStore,
                     aiPlugin,
                     aiStore,
-                    tab);
+                    tab,
+                    onUiOptionsChanged: () => dialogAssist?.RefreshEnabledFromStore());
                 settingsWindow.Closed += (_, _) => settingsWindow = null;
                 settingsWindow.Show();
                 BringSettingsToFront(settingsWindow);
@@ -182,6 +187,7 @@ internal static class Program
 
             app.Exit += (_, _) =>
             {
+                dialogAssist?.Dispose();
                 tray?.Dispose();
                 launcherHotkey?.Dispose();
                 registry.StopAllAsync().GetAwaiter().GetResult();
@@ -202,12 +208,14 @@ internal static class Program
             }
 
             Console.WriteLine("  Esc          dismiss launcher");
+            Console.WriteLine("  Open/Save    file search strip under dialogs (Settings → General)");
             Console.WriteLine("  routes: file search | web keywords (gg/so/yt/x…) | math | > cmd | ? ai");
             Console.WriteLine("  Help         tray → Help (what you can type)");
             Console.WriteLine("  Ctrl+C       quit");
         }
         catch (Exception ex)
         {
+            dialogAssist?.Dispose();
             tray?.Dispose();
             launcherHotkey?.Dispose();
             Console.Error.WriteLine($"Startup failed: {ex}");

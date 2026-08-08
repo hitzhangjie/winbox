@@ -31,6 +31,8 @@ internal sealed class IndexSettingsWindow : Window
     private readonly TextBox _maxMemoryMbBox;
     private readonly CheckBox _recursiveBox;
     private readonly CheckBox _startWithWindowsBox;
+    private readonly CheckBox _fileDialogAssistBox;
+    private readonly Action? _onUiOptionsChanged;
     private readonly ListBox _webList;
     private readonly List<WebSearchEntry> _webDraft = [];
     private readonly TextBox _aiBaseUrlBox;
@@ -62,7 +64,8 @@ internal sealed class IndexSettingsWindow : Window
         WebSearchOptionsStore webStore,
         AiPlugin aiPlugin,
         AiOptionsStore aiStore,
-        SettingsTab initialTab = SettingsTab.Index)
+        SettingsTab initialTab = SettingsTab.Index,
+        Action? onUiOptionsChanged = null)
     {
         _search = search ?? throw new ArgumentNullException(nameof(search));
         _indexStore = indexStore ?? throw new ArgumentNullException(nameof(indexStore));
@@ -71,6 +74,7 @@ internal sealed class IndexSettingsWindow : Window
         _webStore = webStore ?? throw new ArgumentNullException(nameof(webStore));
         _aiPlugin = aiPlugin ?? throw new ArgumentNullException(nameof(aiPlugin));
         _aiStore = aiStore ?? throw new ArgumentNullException(nameof(aiStore));
+        _onUiOptionsChanged = onUiOptionsChanged;
         _loginAutoStart = new LoginAutoStart();
         Title = "WinBox — Settings";
         Width = WinBoxTheme.SettingsWindowWidth;
@@ -155,6 +159,21 @@ internal sealed class IndexSettingsWindow : Window
         _startWithWindowsBox.Unchecked += (_, _) => PersistGeneralFromUi();
         general.Children.Add(_startWithWindowsBox);
         general.Children.Add(Hint("After moving WinBox, turn this off and on again to refresh the path."));
+
+        general.Children.Add(SectionLabel("File dialogs"));
+        general.Children.Add(Hint("When an Open or Save As dialog appears, show a WinBox search strip under it to fill the file name."));
+        _fileDialogAssistBox = new CheckBox
+        {
+            Content = "Show search strip under Open / Save dialogs",
+            Margin = new Thickness(2, 4, 0, 4),
+            Foreground = WinBoxTheme.TextPrimaryBrush,
+            FontFamily = WinBoxTheme.UiFont,
+            FocusVisualStyle = null,
+        };
+        _fileDialogAssistBox.Checked += (_, _) => PersistGeneralFromUi();
+        _fileDialogAssistBox.Unchecked += (_, _) => PersistGeneralFromUi();
+        general.Children.Add(_fileDialogAssistBox);
+
         _tabs.Items.Add(CreateTab("General", WrapScroll(general)));
 
         var indexForm = new StackPanel();
@@ -347,9 +366,9 @@ internal sealed class IndexSettingsWindow : Window
 
     private string StatusForTab(SettingsTab tab) => tab switch
     {
-        SettingsTab.General => _startWithWindowsBox.IsChecked == true
-            ? "Will start with Windows sign-in."
-            : "Won't start automatically.",
+        SettingsTab.General => BuildGeneralStatus(
+            _startWithWindowsBox.IsChecked == true,
+            _fileDialogAssistBox.IsChecked == true),
         SettingsTab.Web => $"Web searches · {_webStore.FilePath}",
         SettingsTab.Ai => $"AI · {_aiStore.FilePath}",
         SettingsTab.Appearance => $"Appearance · {_uiStore.FilePath}",
@@ -416,6 +435,7 @@ internal sealed class IndexSettingsWindow : Window
             var options = _uiStore.LoadOrDefault();
             // Prefer persisted preference; fall back to live Run key if JSON never set it.
             _startWithWindowsBox.IsChecked = options.StartWithWindows || _loginAutoStart.IsEnabled();
+            _fileDialogAssistBox.IsChecked = options.FileDialogAssistEnabled;
         }
         finally
         {
@@ -431,16 +451,17 @@ internal sealed class IndexSettingsWindow : Window
         }
 
         var enabled = _startWithWindowsBox.IsChecked == true;
+        var dialogAssist = _fileDialogAssistBox.IsChecked == true;
         var options = _uiStore.LoadOrDefault();
         options.StartWithWindows = enabled;
+        options.FileDialogAssistEnabled = dialogAssist;
 
         try
         {
             _loginAutoStart.SetEnabled(enabled);
             _uiStore.Save(options);
-            UpdateStatus(enabled
-                ? "Start with Windows enabled."
-                : "Start with Windows disabled.");
+            _onUiOptionsChanged?.Invoke();
+            UpdateStatus(BuildGeneralStatus(enabled, dialogAssist));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
@@ -448,14 +469,22 @@ internal sealed class IndexSettingsWindow : Window
             try
             {
                 _startWithWindowsBox.IsChecked = _loginAutoStart.IsEnabled();
+                _fileDialogAssistBox.IsChecked = _uiStore.LoadOrDefault().FileDialogAssistEnabled;
             }
             finally
             {
                 _loadingAppearance = false;
             }
 
-            UpdateStatus($"Start with Windows failed: {ex.Message}");
+            UpdateStatus($"General settings failed: {ex.Message}");
         }
+    }
+
+    private static string BuildGeneralStatus(bool startWithWindows, bool dialogAssist)
+    {
+        var startup = startWithWindows ? "Start with Windows on" : "Start with Windows off";
+        var assist = dialogAssist ? "file dialog search on" : "file dialog search off";
+        return $"{startup}; {assist}.";
     }
 
     private void LoadAppearanceFromStore()
@@ -563,6 +592,7 @@ internal sealed class IndexSettingsWindow : Window
         _statusText.Foreground = WinBoxTheme.TextSecondaryBrush;
         _recursiveBox.Foreground = WinBoxTheme.TextPrimaryBrush;
         _startWithWindowsBox.Foreground = WinBoxTheme.TextPrimaryBrush;
+        _fileDialogAssistBox.Foreground = WinBoxTheme.TextPrimaryBrush;
 
         SettingsChrome.ApplyTabControl(_tabs);
         SettingsChrome.StyleEmbeddedField(_includeExtensionsBox);

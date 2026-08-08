@@ -42,6 +42,7 @@ Forbidden:
 | Search plugin façade implementing contracts | `plugins/search/WinBox.Search/SearchPlugin.cs` |
 | Calculator / shell / web-prefix / AI launcher handlers | `plugins/toolbox/WinBox.Toolbox` |
 | Launcher overlay, tray, settings chrome, theme tokens, result *row templates* | `src/WinBox.Host/Ui/` — Host owns shell; follow `winbox-ui` |
+| Open/Save dialog assist (detect, docked strip, path fill) | `src/WinBox.Host/Ui/DialogAssist/` — Host owns Win32/focus; queries via `ISearchService` only (not QueryRouter) |
 | Future search-specific copy/status helpers | prefer `plugins/search/.../Ui` helpers only — keep Host shell thin; plugins must not ship a second launcher window |
 | Automated checks | `tests/WinBox.*.Tests` |
 

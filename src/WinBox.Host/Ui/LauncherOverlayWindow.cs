@@ -925,6 +925,8 @@ internal sealed class LauncherOverlayWindow : Window
             ScrollBarWidth = current.ScrollBarWidth,
             ScrollBarMode = current.ScrollBarMode,
             Theme = current.Theme,
+            StartWithWindows = current.StartWithWindows,
+            FileDialogAssistEnabled = current.FileDialogAssistEnabled,
         };
         try
         {

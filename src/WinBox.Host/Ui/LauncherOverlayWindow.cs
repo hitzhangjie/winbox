@@ -29,6 +29,7 @@ internal sealed class LauncherOverlayWindow : Window
     private UiOptions _uiOptions;
     private bool _syncingUi;
     private bool _suppressPersist;
+    private bool _dismissing;
 
     public LauncherOverlayWindow(
         LauncherOverlayState state,
@@ -39,9 +40,10 @@ internal sealed class LauncherOverlayWindow : Window
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _uiStore = uiStore ?? throw new ArgumentNullException(nameof(uiStore));
         _uiOptions = UiOptionsStore.Normalize(_uiStore.LoadOrDefault());
+        UiLayout.Apply(_uiOptions);
 
         Title = "WinBox";
-        Width = _uiOptions.OverlayWidth;
+        Width = UiLayout.OverlayWidth + (WinBoxTheme.OverlayShadowPad * 2);
         SizeToContent = SizeToContent.Height;
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
@@ -65,6 +67,8 @@ internal sealed class LauncherOverlayWindow : Window
             BorderBrush = WinBoxTheme.BorderSubtleBrush,
             BorderThickness = new Thickness(1),
             SnapsToDevicePixels = true,
+            Effect = WindowEffects.CreateOverlayShadow(),
+            Margin = new Thickness(WinBoxTheme.OverlayShadowPad),
         };
         _chrome.MouseLeftButtonDown += OnChromeMouseLeftButtonDown;
 
@@ -77,7 +81,7 @@ internal sealed class LauncherOverlayWindow : Window
 
         _modeLabel = new TextBlock
         {
-            FontSize = WinBoxTheme.FontInput,
+            FontSize = UiLayout.FontInput,
             FontWeight = FontWeights.SemiBold,
             Foreground = WinBoxTheme.AccentBrush,
             VerticalAlignment = VerticalAlignment.Center,
@@ -87,7 +91,7 @@ internal sealed class LauncherOverlayWindow : Window
         _modeSeparator = new TextBlock
         {
             Text = "|",
-            FontSize = WinBoxTheme.FontInput,
+            FontSize = UiLayout.FontInput,
             Foreground = WinBoxTheme.TextSecondaryBrush,
             VerticalAlignment = VerticalAlignment.Center,
             Visibility = Visibility.Collapsed,
@@ -100,7 +104,7 @@ internal sealed class LauncherOverlayWindow : Window
 
         _queryBox = new TextBox
         {
-            FontSize = WinBoxTheme.FontInput,
+            FontSize = UiLayout.FontInput,
             FontFamily = WinBoxTheme.UiFont,
             Background = Brushes.Transparent,
             Foreground = WinBoxTheme.TextPrimaryBrush,
@@ -117,7 +121,7 @@ internal sealed class LauncherOverlayWindow : Window
         _results = new ListBox
         {
             Visibility = Visibility.Collapsed,
-            MaxHeight = WinBoxTheme.ResultsMaxHeight,
+            MaxHeight = UiLayout.ResultsMaxHeight,
             BorderThickness = new Thickness(0),
             Background = WinBoxTheme.SurfaceSunkenBrush,
             Foreground = WinBoxTheme.TextPrimaryBrush,
@@ -129,8 +133,9 @@ internal sealed class LauncherOverlayWindow : Window
         };
         // Attached scroll policy: vertical only — never grow width for long paths.
         ScrollViewer.SetHorizontalScrollBarVisibility(_results, ScrollBarVisibility.Disabled);
-        ScrollViewer.SetVerticalScrollBarVisibility(_results, ScrollBarVisibility.Auto);
+        ScrollViewer.SetVerticalScrollBarVisibility(_results, UiLayout.ToVisibility(UiLayout.ScrollBarMode));
         ScrollViewer.SetCanContentScroll(_results, true);
+        ThemedScrollBars.Apply(_results);
 
         _results.SelectionChanged += (_, _) =>
         {
@@ -150,7 +155,7 @@ internal sealed class LauncherOverlayWindow : Window
         _emptyText = new TextBlock
         {
             Text = "No results",
-            FontSize = WinBoxTheme.FontTitle,
+            FontSize = UiLayout.FontTitle,
             Foreground = WinBoxTheme.TextSecondaryBrush,
             Margin = new Thickness(18, 14, 18, 14),
             Visibility = Visibility.Collapsed,
@@ -164,7 +169,7 @@ internal sealed class LauncherOverlayWindow : Window
         _footerText = new TextBlock
         {
             Text = "Enter open  ·  Alt+Enter reveal  ·  Esc close  ·  drag to move",
-            FontSize = WinBoxTheme.FontFooter,
+            FontSize = UiLayout.FontFooter,
             Foreground = WinBoxTheme.TextSecondaryBrush,
             Margin = new Thickness(14, 8, 14, 10),
             TextTrimming = TextTrimming.CharacterEllipsis,
@@ -197,10 +202,62 @@ internal sealed class LauncherOverlayWindow : Window
         PreviewKeyDown += OnPreviewKeyDown;
         LocationChanged += (_, _) => SchedulePersist();
         _state.Changed += () => Dispatcher.Invoke(SyncFromState);
+        WinBoxTheme.Changed += OnThemeChanged;
+        UiLayout.Changed += OnLayoutChanged;
+        Closed += (_, _) =>
+        {
+            WinBoxTheme.Changed -= OnThemeChanged;
+            UiLayout.Changed -= OnLayoutChanged;
+        };
+    }
+
+    private void OnLayoutChanged()
+    {
+        Dispatcher.Invoke(ApplyChromeFromLayout);
+    }
+
+    private void ApplyChromeFromLayout()
+    {
+        _uiOptions = UiOptionsStore.Normalize(_uiStore.LoadOrDefault());
+        Width = UiLayout.OverlayWidth + (WinBoxTheme.OverlayShadowPad * 2);
+        _modeLabel.FontSize = UiLayout.FontInput;
+        _modeSeparator.FontSize = UiLayout.FontInput;
+        _queryBox.FontSize = UiLayout.FontInput;
+        _results.MaxHeight = UiLayout.ResultsMaxHeight;
+        _emptyText.FontSize = UiLayout.FontTitle;
+        _footerText.FontSize = UiLayout.FontFooter;
+        ScrollViewer.SetVerticalScrollBarVisibility(_results, UiLayout.ToVisibility(UiLayout.ScrollBarMode));
+        ThemedScrollBars.Apply(_results);
+        _results.ItemTemplate = ResultRowView.CreateListTemplate();
+        SyncFromState();
+    }
+
+    private void OnThemeChanged()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            _chrome.Background = WinBoxTheme.SurfaceOverlayBrush;
+            _chrome.BorderBrush = WinBoxTheme.BorderSubtleBrush;
+            _modeLabel.Foreground = WinBoxTheme.AccentBrush;
+            _modeSeparator.Foreground = WinBoxTheme.TextSecondaryBrush;
+            _queryBox.Foreground = WinBoxTheme.TextPrimaryBrush;
+            _queryBox.CaretBrush = WinBoxTheme.TextPrimaryBrush;
+            _results.Background = WinBoxTheme.SurfaceSunkenBrush;
+            _results.Foreground = WinBoxTheme.TextPrimaryBrush;
+            _results.ItemContainerStyle = CreateResultItemStyle();
+            ThemedScrollBars.Apply(_results);
+            _emptyText.Foreground = WinBoxTheme.TextSecondaryBrush;
+            _footerText.Foreground = WinBoxTheme.TextSecondaryBrush;
+            SyncFromState();
+        });
     }
 
     public void ActivateOverlay()
     {
+        _dismissing = false;
+        BeginAnimation(OpacityProperty, null);
+        Opacity = 1;
+
         _state.Activate();
         _syncingUi = true;
         _queryBox.Text = string.Empty;
@@ -210,8 +267,10 @@ internal sealed class LauncherOverlayWindow : Window
         {
             _suppressPersist = true;
             ApplyPlacement();
+            Opacity = 0;
             Show();
             _suppressPersist = false;
+            WindowEffects.FadeIn(this);
         }
 
         Activate();
@@ -221,12 +280,29 @@ internal sealed class LauncherOverlayWindow : Window
 
     public void DismissOverlay()
     {
+        if (_dismissing)
+        {
+            return;
+        }
+
         PersistPosition();
         _state.Dismiss();
         _syncingUi = true;
         _queryBox.Text = string.Empty;
         _syncingUi = false;
-        Hide();
+
+        if (!IsVisible)
+        {
+            return;
+        }
+
+        _dismissing = true;
+        WindowEffects.FadeOut(this, () =>
+        {
+            Hide();
+            Opacity = 1;
+            _dismissing = false;
+        });
     }
 
     private void OnChromeMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -418,10 +494,10 @@ internal sealed class LauncherOverlayWindow : Window
 
     private void ApplyPlacement()
     {
-        Width = _uiOptions.OverlayWidth;
+        Width = UiLayout.OverlayWidth + (WinBoxTheme.OverlayShadowPad * 2);
 
         if (_uiOptions.OverlayLeft is double left && _uiOptions.OverlayTop is double top
-            && IsPlacementVisible(left, top, Width))
+            && IsPlacementVisible(left, top, UiLayout.OverlayWidth))
         {
             Left = left;
             Top = top;
@@ -466,11 +542,19 @@ internal sealed class LauncherOverlayWindow : Window
             return;
         }
 
+        var current = UiOptionsStore.Normalize(_uiStore.LoadOrDefault());
         _uiOptions = new UiOptions
         {
             OverlayLeft = Left,
             OverlayTop = Top,
-            OverlayWidth = Width,
+            OverlayWidth = Math.Max(400, Width - (WinBoxTheme.OverlayShadowPad * 2)),
+            ResultsMaxHeight = current.ResultsMaxHeight,
+            FontInput = current.FontInput,
+            FontTitle = current.FontTitle,
+            FontSubtitle = current.FontSubtitle,
+            ScrollBarWidth = current.ScrollBarWidth,
+            ScrollBarMode = current.ScrollBarMode,
+            Theme = current.Theme,
         };
         try
         {

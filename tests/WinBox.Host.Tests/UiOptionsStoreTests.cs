@@ -18,6 +18,7 @@ public sealed class UiOptionsStoreTests
                 OverlayLeft = 120,
                 OverlayTop = 80,
                 OverlayWidth = 640,
+                Theme = "light",
             });
 
             var loaded = store.LoadOrDefault();
@@ -25,6 +26,7 @@ public sealed class UiOptionsStoreTests
             Assert.Equal(120, loaded.OverlayLeft);
             Assert.Equal(80, loaded.OverlayTop);
             Assert.Equal(640, loaded.OverlayWidth);
+            Assert.Equal("light", loaded.Theme);
         }
         finally
         {

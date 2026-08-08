@@ -21,6 +21,9 @@ internal static class Program
         var optionsStore = new IndexOptionsStore(IndexOptionsStore.DefaultFilePath);
         var indexOptions = optionsStore.LoadOrDefault();
         var uiStore = new UiOptionsStore(UiOptionsStore.DefaultFilePath);
+        var uiOptions = uiStore.LoadOrDefault();
+        WinBoxTheme.Apply(WinBoxTheme.ParseTheme(uiOptions.Theme));
+        UiLayout.Apply(uiOptions);
 
         var registry = new PluginRegistry();
         var searchPlugin = new SearchPlugin(indexOptions);
@@ -65,15 +68,16 @@ internal static class Program
 
             IndexSettingsWindow? settingsWindow = null;
 
-            void OpenSettings()
+            void OpenSettings(SettingsTab tab)
             {
                 if (settingsWindow is { IsLoaded: true })
                 {
+                    settingsWindow.ShowTab(tab);
                     BringSettingsToFront(settingsWindow);
                     return;
                 }
 
-                settingsWindow = new IndexSettingsWindow(searchPlugin, optionsStore);
+                settingsWindow = new IndexSettingsWindow(searchPlugin, optionsStore, uiStore, tab);
                 settingsWindow.Closed += (_, _) => settingsWindow = null;
                 settingsWindow.Show();
                 BringSettingsToFront(settingsWindow);
@@ -110,11 +114,11 @@ internal static class Program
 
             tray = new AppTrayIcon(overlay.Dispatcher);
             tray.OpenLauncherRequested += () => overlay.ActivateOverlay();
-            tray.OpenSettingsRequested += OpenSettings;
+            tray.OpenSettingsRequested += () => OpenSettings(SettingsTab.Index);
             tray.ExitRequested += () => app.Shutdown();
             tray.ShowBalloon(
                 "WinBox",
-                $"Ready — {searchPlugin.IndexedCount} files indexed. Right-click tray for settings.");
+                $"Ready — {searchPlugin.IndexedCount} files indexed. Right-click tray for Settings.");
 
             app.Exit += (_, _) =>
             {
@@ -130,7 +134,7 @@ internal static class Program
             };
 
             Console.WriteLine("WinBox host started.");
-            Console.WriteLine("  Tray icon     right-click → Index settings / Quit");
+            Console.WriteLine("  Tray icon     right-click → Settings / Quit");
             Console.WriteLine("  Tray double-click → open launcher");
             if (launcherHotkey is not null)
             {

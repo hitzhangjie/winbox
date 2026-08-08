@@ -25,4 +25,8 @@
     <Using Remove="System.Drawing.Imaging" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\winbox.ico" Condition="Exists('Assets\winbox.ico')" />
+  </ItemGroup>
+
 </Project>

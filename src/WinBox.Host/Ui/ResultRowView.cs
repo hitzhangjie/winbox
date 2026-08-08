@@ -84,7 +84,7 @@ public sealed class ResultRowView : Grid
         _title = new TextBlock
         {
             FontFamily = WinBoxTheme.UiFont,
-            FontSize = WinBoxTheme.FontTitle,
+            FontSize = UiLayout.FontTitle,
             FontWeight = FontWeights.SemiBold,
             Foreground = WinBoxTheme.TextPrimaryBrush,
             TextTrimming = TextTrimming.CharacterEllipsis,
@@ -93,7 +93,7 @@ public sealed class ResultRowView : Grid
         _subtitle = new TextBlock
         {
             FontFamily = WinBoxTheme.UiFont,
-            FontSize = WinBoxTheme.FontSubtitle,
+            FontSize = UiLayout.FontSubtitle,
             Foreground = WinBoxTheme.TextSecondaryBrush,
             TextTrimming = TextTrimming.CharacterEllipsis,
             TextWrapping = TextWrapping.NoWrap,

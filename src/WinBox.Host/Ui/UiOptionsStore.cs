@@ -40,7 +40,7 @@ public sealed class UiOptionsStore
     {
         if (!File.Exists(_filePath))
         {
-            return new UiOptions();
+            return Normalize(new UiOptions());
         }
 
         try
@@ -51,7 +51,7 @@ public sealed class UiOptionsStore
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
         {
-            return new UiOptions();
+            return Normalize(new UiOptions());
         }
     }
 
@@ -72,18 +72,30 @@ public sealed class UiOptionsStore
     public static UiOptions Normalize(UiOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        var width = options.OverlayWidth;
-        if (double.IsNaN(width) || width < 400 || width > 900)
-        {
-            width = WinBoxTheme.OverlayWidth;
-        }
 
         return new UiOptions
         {
             OverlayLeft = SanitizeCoord(options.OverlayLeft),
             OverlayTop = SanitizeCoord(options.OverlayTop),
-            OverlayWidth = width,
+            OverlayWidth = Clamp(options.OverlayWidth, 400, 900, WinBoxTheme.OverlayWidth),
+            ResultsMaxHeight = Clamp(options.ResultsMaxHeight, 160, 560, WinBoxTheme.ResultsMaxHeight),
+            FontInput = Clamp(options.FontInput, 14, 28, WinBoxTheme.FontInput),
+            FontTitle = Clamp(options.FontTitle, 11, 20, WinBoxTheme.FontTitle),
+            FontSubtitle = Clamp(options.FontSubtitle, 10, 16, WinBoxTheme.FontSubtitle),
+            ScrollBarWidth = Clamp(options.ScrollBarWidth, 4, 16, 8),
+            ScrollBarMode = UiLayout.ToStorage(UiLayout.ParseScrollBarMode(options.ScrollBarMode)),
+            Theme = WinBoxTheme.ToStorage(WinBoxTheme.ParseTheme(options.Theme)),
         };
+    }
+
+    private static double Clamp(double value, double min, double max, double fallback)
+    {
+        if (double.IsNaN(value) || double.IsInfinity(value) || value < min || value > max)
+        {
+            return fallback;
+        }
+
+        return value;
     }
 
     private static double? SanitizeCoord(double? value)

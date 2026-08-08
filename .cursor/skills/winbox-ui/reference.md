@@ -147,11 +147,11 @@ make run
 
 Ordered for product feel vs effort:
 
-1. ~~Result row template + kill horizontal scroll (P0)~~ — done (Host `ResultRowView` + scroll policy)
-2. ~~Overlay corner radius + selection styling (P1)~~ — done (`WinBoxTheme` + chrome border)
-3. ~~Position drag + persist (P1)~~ — done (`ui-options.json`)
+1. ~~Result row template + kill horizontal scroll (P0)~~ — done
+2. ~~Overlay corner radius + selection styling (P1)~~ — done
+3. ~~Position drag + persist (P1)~~ — done
 4. ~~Empty / no-result + footer shortcut hints (P1)~~ — done
-5. Tray multi-size ICO (P2) — interim geometric tray mark; still want packaged `.ico`
-6. Settings section visual + button styling (P2) — token pass done; tabbed IA still open
-7. Mica / shadow / motion (P2–P3)
-8. Theme preference (P3)
+5. ~~Tray multi-size ICO (P2)~~ — done (`Assets/winbox.ico` + `TrayIconFactory`; regen via `tools/GenTrayIcon`)
+6. ~~Settings section visual + button styling (P2)~~ — done (Index / General / Shortcuts tabs)
+7. ~~Mica / shadow / motion (P2–P3)~~ — done (overlay shadow + fade; settings DWM Mica/round when available)
+8. ~~Theme preference (P3)~~ — done (dark / light / system in General + `ui-options.json`)

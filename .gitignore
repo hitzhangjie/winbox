@@ -12,17 +12,22 @@ Desktop.ini
 *.swp
 *~
 
-# Build
+# Build (.NET and generic)
 bin/
 obj/
 target/
 dist/
 build/
 out/
+artifacts/
 *.exe
 *.dll
 *.pdb
 *.ilk
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
 
 # Dependencies
 node_modules/
@@ -39,3 +44,13 @@ __pycache__/
 # Logs
 *.log
 logs/
+
+# Test / coverage
+TestResults/
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+*.lcov

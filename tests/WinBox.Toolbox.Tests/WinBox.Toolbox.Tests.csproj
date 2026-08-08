@@ -1,10 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
@@ -21,9 +20,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\WinBox.Host\WinBox.Host.csproj" />
-    <ProjectReference Include="..\..\src\WinBox.Abstractions\WinBox.Abstractions.csproj" />
-    <ProjectReference Include="..\..\plugins\search\WinBox.Search\WinBox.Search.csproj" />
     <ProjectReference Include="..\..\plugins\toolbox\WinBox.Toolbox\WinBox.Toolbox.csproj" />
   </ItemGroup>
 

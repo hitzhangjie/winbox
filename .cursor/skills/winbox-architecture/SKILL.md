@@ -15,8 +15,8 @@ Principle: **small core, large plugins**. Host composes; plugins deliver capabil
 
 ```text
 WinBox.Host ──► WinBox.Search ──► WinBox.Abstractions
-     │                                    ▲
-     └────────────────────────────────────┘
+     │               ▲
+     └─► WinBox.Toolbox ──┘
 ```
 
 Allowed:
@@ -35,12 +35,13 @@ Forbidden:
 
 | Change type | Put it here |
 |-------------|-------------|
-| Shared plugin lifecycle / search API shapes | `src/WinBox.Abstractions` |
-| Register/start/stop plugins, future discovery | `src/WinBox.Host` |
+| Shared plugin lifecycle / search / query-handler shapes | `src/WinBox.Abstractions` |
+| Register/start/stop plugins, query router, launcher shell | `src/WinBox.Host` |
 | Path storage, scanning, incremental index | `plugins/search/WinBox.Search/Index` |
 | Matching, ranking, filters | `plugins/search/WinBox.Search/Query` |
 | Search plugin façade implementing contracts | `plugins/search/WinBox.Search/SearchPlugin.cs` |
-| Future search UI overlay | prefer `plugins/search/.../Ui` (or dedicated UI project) — keep Host thin |
+| Calculator / shell / web-prefix / AI launcher handlers | `plugins/toolbox/WinBox.Toolbox` |
+| Future search-specific UI polish | prefer `plugins/search/.../Ui` — keep Host shell thin |
 | Automated checks | `tests/WinBox.*.Tests` |
 
 ## Adding a new plugin (template)

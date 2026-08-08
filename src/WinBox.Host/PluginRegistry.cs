@@ -32,6 +32,9 @@ public sealed class PluginRegistry
         return match;
     }
 
+    public IReadOnlyList<T> GetMany<T>() where T : class =>
+        _plugins.Values.OfType<T>().ToList();
+
     public async Task StartAllAsync(CancellationToken cancellationToken = default)
     {
         foreach (var plugin in _plugins.Values)

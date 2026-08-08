@@ -1,8 +1,10 @@
 ﻿using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
+using WinBox.Host.Query;
 using WinBox.Host.Ui;
 using WinBox.Search;
+using WinBox.Toolbox;
 
 namespace WinBox.Host;
 
@@ -13,6 +15,10 @@ internal static class Program
     {
         var registry = new PluginRegistry();
         registry.Register(new SearchPlugin());
+        registry.Register(new CalculatorPlugin());
+        registry.Register(new ShellPlugin());
+        registry.Register(new WebSearchPlugin());
+        registry.Register(new AiPlugin());
 
         var app = new Application
         {
@@ -38,8 +44,10 @@ internal static class Program
                 @"D:\Github\winbox\README.md",
             ]).ConfigureAwait(true);
 
+            var router = new QueryRouter(registry.GetMany<Abstractions.IQueryHandler>());
             var overlayState = new LauncherOverlayState();
-            var overlay = new LauncherOverlayWindow(overlayState);
+            var session = new LauncherQuerySession(router, overlayState);
+            var overlay = new LauncherOverlayWindow(overlayState, session);
             _ = new WindowInteropHelper(overlay).EnsureHandle();
 
             GlobalHotkey hotkey;
@@ -70,8 +78,9 @@ internal static class Program
             };
 
             Console.WriteLine("WinBox host started.");
-            Console.WriteLine("  Shift+Alt+U  open launcher input");
-            Console.WriteLine("  Esc          dismiss launcher");
+            Console.WriteLine("  Shift+Alt+U  open launcher");
+            Console.WriteLine("  Esc          dismiss");
+            Console.WriteLine("  routes: file search | google/gg | math | > cmd | ? ai");
             Console.WriteLine("  Ctrl+C       quit");
         }
         catch (Exception ex)

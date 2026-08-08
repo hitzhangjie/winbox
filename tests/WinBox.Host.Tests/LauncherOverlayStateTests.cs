@@ -8,12 +8,14 @@ public sealed class LauncherOverlayStateTests
     public void Activate_MakesVisibleAndClearsQuery()
     {
         var state = new LauncherOverlayState();
-        state.SetQuery("partial");
+        state.SetRawQuery("partial");
 
         state.Activate();
 
         Assert.True(state.IsVisible);
         Assert.Equal(string.Empty, state.Query);
+        Assert.Null(state.ModeLabel);
+        Assert.Empty(state.Results);
     }
 
     [Fact]
@@ -21,7 +23,7 @@ public sealed class LauncherOverlayStateTests
     {
         var state = new LauncherOverlayState();
         state.Activate();
-        state.SetQuery("winbox");
+        state.SetRawQuery("winbox");
 
         state.Dismiss();
 
@@ -30,15 +32,16 @@ public sealed class LauncherOverlayStateTests
     }
 
     [Fact]
-    public void Activate_WhenAlreadyVisible_ResetsQuery()
+    public void ComposeRawFromPayload_UsesPrefix()
     {
         var state = new LauncherOverlayState();
-        state.Activate();
-        state.SetQuery("old");
+        state.ApplyMatch(
+            new Abstractions.QueryMatch("winbox.web", 80, "google ", "hi", "Google"),
+            "google hi");
 
-        state.Activate();
+        var raw = state.ComposeRawFromPayload("maps");
 
-        Assert.True(state.IsVisible);
-        Assert.Equal(string.Empty, state.Query);
+        Assert.Equal("google maps", raw);
+        Assert.Equal("Google", state.ModeLabel);
     }
 }

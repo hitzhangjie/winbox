@@ -42,12 +42,11 @@ make ci        # 对齐 GitHub CI：Release 编译 + 测试
 ```
 WinBox.sln
 ├── src/
-│   ├── WinBox.Abstractions/   ← 合同：接口，几乎没有实现
-│   └── WinBox.Host/           ← 宿主：启动、注册插件、全局热键与唤起层
-├── plugins/search/
-│   └── WinBox.Search/         ← 能力：真正的索引 + 搜索
-│       ├── Index/             ← 存路径（现在是内存）
-│       └── Query/             ← 按关键字匹配、打分
+│   ├── WinBox.Abstractions/   ← 合同：插件启停、搜索、IQueryHandler 分流
+│   └── WinBox.Host/           ← 宿主：注册插件、QueryRouter、热键与唤起层
+├── plugins/
+│   ├── search/WinBox.Search/  ← 文件索引 + 搜索（默认路由）
+│   └── toolbox/WinBox.Toolbox/← 计算器 / CMD / Web 前缀 / AI 骨架
 └── tests/                     ← 验证上面几块有没有按合同工作
 ```
 
@@ -56,7 +55,8 @@ WinBox.sln
 ```text
 WinBox.Host ──────────► WinBox.Abstractions
        │                        ▲
-       └──────► WinBox.Search ──┘
+       ├──────► WinBox.Search ──┘
+       └──────► WinBox.Toolbox ─┘
 ```
 
 - **Abstractions 不依赖任何人**：合同要稳定，大家都能引用。
@@ -75,7 +75,8 @@ WinBox.Host ──────────► WinBox.Abstractions
 1. **注册**：`new SearchPlugin()` 放进 `PluginRegistry`
 2. **启动**：`StartAllAsync()` → 每个插件的 `StartAsync()`
 3. **按能力取用**：`GetRequired<ISearchService>()` —— 要的是「能搜索」，不是某个具体类名
-4. **建索引 → 热键待命**：注册 `Shift+Alt+U`，唤起输入框；`Esc` 关闭；`Ctrl+C` 时 `StopAllAsync`
+4. **建索引 → 热键待命**：`QueryRouter` 按输入分流到 `IQueryHandler`；`Shift+Alt+U` 唤起；`Esc` 关闭；`Ctrl+C` 时 `StopAllAsync`
+
 
 搜索插件 `SearchPlugin` 同时实现两个接口：
 
@@ -97,8 +98,9 @@ WinBox.Host ──────────► WinBox.Abstractions
 |----------|-------------------|
 | 多项目解决方案 + 清晰引用关系 | 从磁盘自动发现插件（现在是代码里 `new`） |
 | 插件启停合同 | 真实扫盘、增量索引（如 USN） |
-| 内存索引 + 子串搜索 | 输入框接搜索 / 结果列表 |
-| 全局热键 + 简易唤起输入框（Host） | 托盘、可配置热键、真实扫盘 |
+| 内存索引 + 子串搜索（默认输入） | 真实扫盘 / 全文检索 |
+| 全局热键 + 唤起层 + QueryRouter | 托盘、可配置热键、结果区尺寸定制 |
+| Web 前缀（google/gg）、计算器、`>` CMD、`?` AI 骨架 | Web/AI 设置面板、LLM 流式、别名编辑 |
 | 单元测试 + Makefile + GitHub Actions CI | 进程隔离、按需安装插件包 |
 
 改代码前先对一下表，避免在「尚未存在的能力」上空转。
@@ -109,11 +111,12 @@ WinBox.Host ──────────► WinBox.Abstractions
 
 | 你想做的事 | 优先看 / 改 |
 |------------|-------------|
-| 改插件合同（启停、搜索 API） | `src/WinBox.Abstractions/`，并同步改实现与测试 |
-| 改宿主注册、启停、热键 / 唤起层 | `src/WinBox.Host/`（UI 在 `Ui/`） |
+| 改插件合同（启停、搜索、查询分流） | `src/WinBox.Abstractions/`，并同步改实现与测试 |
+| 改宿主注册、启停、热键 / 唤起层 / Router | `src/WinBox.Host/`（UI 在 `Ui/`，路由在 `Query/`） |
 | 改索引存储或扫描逻辑 | `plugins/search/WinBox.Search/Index/` |
 | 改匹配、排序、查询行为 | `plugins/search/WinBox.Search/Query/` |
 | 改搜索插件对外行为 | `plugins/search/WinBox.Search/SearchPlugin.cs` |
+| 改计算器 / CMD / Web 前缀 / AI | `plugins/toolbox/WinBox.Toolbox/` |
 | 加/改自动化验证 | `tests/WinBox.*.Tests/` |
 
 ### 小习惯（强烈建议）

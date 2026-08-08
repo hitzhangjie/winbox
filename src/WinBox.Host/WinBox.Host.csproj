@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\WinBox.Abstractions\WinBox.Abstractions.csproj" />
     <ProjectReference Include="..\..\plugins\search\WinBox.Search\WinBox.Search.csproj" />
+    <ProjectReference Include="..\..\plugins\toolbox\WinBox.Toolbox\WinBox.Toolbox.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

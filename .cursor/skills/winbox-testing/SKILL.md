@@ -37,7 +37,8 @@ Skip new tests only for pure docs/chore with no runtime impact (say so explicitl
 | Area | Test project |
 |------|----------------|
 | Search index/query/plugin | `tests/WinBox.Search.Tests` |
-| Host registry / composition | `tests/WinBox.Host.Tests` |
+| Host registry / query router / overlay state | `tests/WinBox.Host.Tests` |
+| Calculator / shell / web / AI handlers | `tests/WinBox.Toolbox.Tests` |
 
 Framework: **xUnit** (`[Fact]`, `[Theory]` as needed).
 

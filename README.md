@@ -54,14 +54,15 @@ winbox/
 ├── nuget.config
 ├── .github/workflows/ci.yml
 ├── src/
-│   ├── WinBox.Abstractions/    # 插件与搜索协议
-│   └── WinBox.Host/            # 宿主（当前：控制台演示）
+│   ├── WinBox.Abstractions/    # 插件、搜索、IQueryHandler 协议
+│   └── WinBox.Host/            # 宿主：热键、唤起层、QueryRouter
 ├── plugins/
-│   └── search/
-│       └── WinBox.Search/      # 索引 + 查询 MVP 骨架
+│   ├── search/WinBox.Search/   # 文件索引 + 搜索
+│   └── toolbox/WinBox.Toolbox/ # 计算器 / CMD / Web / AI 骨架
 └── tests/
     ├── WinBox.Host.Tests/
-    └── WinBox.Search.Tests/
+    ├── WinBox.Search.Tests/
+    └── WinBox.Toolbox.Tests/
 ```
 
 ## 本地开发

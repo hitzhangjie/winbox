@@ -6,7 +6,7 @@ namespace WinBox.Search.Index;
 public sealed class InMemoryFileIndex
 {
     private readonly object _gate = new();
-    private readonly Dictionary<string, string> _entries = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, FileIndexEntry> _entries = new(StringComparer.OrdinalIgnoreCase);
 
     public int Count
     {
@@ -19,22 +19,56 @@ public sealed class InMemoryFileIndex
         }
     }
 
-    public void Upsert(IEnumerable<string> paths)
+    public void Upsert(IEnumerable<FileIndexEntry> entries)
     {
-        ArgumentNullException.ThrowIfNull(paths);
+        ArgumentNullException.ThrowIfNull(entries);
 
         lock (_gate)
         {
-            foreach (var path in paths)
+            foreach (var entry in entries)
             {
-                if (string.IsNullOrWhiteSpace(path))
+                if (entry is null || string.IsNullOrWhiteSpace(entry.FullPath))
                 {
                     continue;
                 }
 
-                var normalized = path.Trim();
-                _entries[normalized] = System.IO.Path.GetFileName(normalized);
+                var normalizedPath = entry.FullPath.Trim();
+                _entries[normalizedPath] = entry with { FullPath = normalizedPath };
             }
+        }
+    }
+
+    /// <summary>
+    /// Upsert by path string. Reads disk metadata when the file exists; otherwise synthesizes a record.
+    /// </summary>
+    public void Upsert(IEnumerable<string> paths)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+
+        var batch = new List<FileIndexEntry>();
+        foreach (var path in paths)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                continue;
+            }
+
+            batch.Add(FromPath(path.Trim()));
+        }
+
+        Upsert(batch);
+    }
+
+    public bool Remove(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        lock (_gate)
+        {
+            return _entries.Remove(path.Trim());
         }
     }
 
@@ -42,9 +76,17 @@ public sealed class InMemoryFileIndex
     {
         lock (_gate)
         {
-            return _entries
-                .Select(static pair => (pair.Key, pair.Value))
+            return _entries.Values
+                .Select(static e => (e.FullPath, e.FileName))
                 .ToArray();
+        }
+    }
+
+    public IReadOnlyList<FileIndexEntry> SnapshotEntries()
+    {
+        lock (_gate)
+        {
+            return _entries.Values.ToArray();
         }
     }
 
@@ -54,5 +96,32 @@ public sealed class InMemoryFileIndex
         {
             _entries.Clear();
         }
+    }
+
+    private static FileIndexEntry FromPath(string path)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            if (info.Exists)
+            {
+                return new FileIndexEntry(
+                    FullPath: info.FullName,
+                    FileName: info.Name,
+                    Extension: IndexPolicy.NormalizeExtension(info.Extension),
+                    LastWriteTimeUtc: info.LastWriteTimeUtc);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Fall through to synthesized entry.
+        }
+
+        var fileName = Path.GetFileName(path);
+        return new FileIndexEntry(
+            FullPath: path,
+            FileName: fileName,
+            Extension: IndexPolicy.NormalizeExtension(Path.GetExtension(path)),
+            LastWriteTimeUtc: DateTime.MinValue);
     }
 }

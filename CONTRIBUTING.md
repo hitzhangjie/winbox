@@ -75,7 +75,7 @@ WinBox.Host ──────────► WinBox.Abstractions
 1. **注册**：`new SearchPlugin()` 放进 `PluginRegistry`
 2. **启动**：`StartAllAsync()` → 每个插件的 `StartAsync()`
 3. **按能力取用**：`GetRequired<ISearchService>()` —— 要的是「能搜索」，不是某个具体类名
-4. **建索引 → 热键待命**：`QueryRouter` 按输入分流到 `IQueryHandler`；`Shift+Alt+U` 唤起；`Esc` 关闭；`Ctrl+C` 时 `StopAllAsync`
+4. **建索引 → 热键待命**：`RebuildIndexAsync()` 按插件配置的 roots/policy 扫盘；`QueryRouter` 按输入分流到 `IQueryHandler`；`Shift+Alt+U` 唤起；`Esc` 关闭；`Ctrl+C` 时 `StopAllAsync`
 
 
 搜索插件 `SearchPlugin` 同时实现两个接口：
@@ -88,7 +88,7 @@ WinBox.Host ──────────► WinBox.Abstractions
 - `Index/InMemoryFileIndex`：存路径
 - `Query/SubstringSearchEngine`：子串匹配 + 简单排序
 
-当前索引数据是演示用的几条假路径，**还没有真正扫你的硬盘**——那是后续阶段的工作。
+当前已按配置 roots + 白/黑名单真实扫盘写入内存文件名索引（Host 暂硬编码窄路径）；持久化、配置面板、增量更新见后续阶段。设计细节：[plugins/search/README.md](plugins/search/README.md)。
 
 ---
 
@@ -97,8 +97,9 @@ WinBox.Host ──────────► WinBox.Abstractions
 | 已经有的 | 还只是骨架 / 未做 |
 |----------|-------------------|
 | 多项目解决方案 + 清晰引用关系 | 从磁盘自动发现插件（现在是代码里 `new`） |
-| 插件启停合同 | 真实扫盘、增量索引（如 USN） |
-| 内存索引 + 子串搜索（默认输入） | 真实扫盘 / 全文检索 |
+| 插件启停合同 + 按策略扫盘建文件名索引 | 持久化索引、配置面板 |
+| 内存索引 + 子串搜索（默认输入） | OpenPath 等激活动作 |
+| 搜索索引设计文档（文件名优先 + 增量方案） | Watcher / USN 增量、全文/标题可选索引 |
 | 全局热键 + 唤起层 + QueryRouter | 托盘、可配置热键、结果区尺寸定制 |
 | Web 前缀（google/gg）、计算器、`>` CMD、`?` AI 骨架 | Web/AI 设置面板、LLM 流式、别名编辑 |
 | 单元测试 + Makefile + GitHub Actions CI | 进程隔离、按需安装插件包 |

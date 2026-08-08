@@ -4,17 +4,22 @@ using System.Windows.Interop;
 using WinBox.Host.Query;
 using WinBox.Host.Ui;
 using WinBox.Search;
+using WinBox.Search.Index;
 using WinBox.Toolbox;
 
 namespace WinBox.Host;
 
 internal static class Program
 {
+    // Temporary hardcoded roots until the settings panel lands. Keep narrow to avoid full-disk cost.
+    private static readonly IndexOptions DevIndexOptions = IndexOptions.ForDevRoots(
+        @"D:\Github\proposal");
+
     [STAThread]
     private static void Main()
     {
         var registry = new PluginRegistry();
-        registry.Register(new SearchPlugin());
+        registry.Register(new SearchPlugin(DevIndexOptions));
         registry.Register(new CalculatorPlugin());
         registry.Register(new ShellPlugin());
         registry.Register(new WebSearchPlugin());
@@ -37,12 +42,11 @@ internal static class Program
             await registry.StartAllAsync().ConfigureAwait(true);
 
             var search = registry.GetRequired<Abstractions.ISearchService>();
-            await search.IndexPathsAsync(
-            [
-                @"C:\Users\demo\Documents\report.docx",
-                @"C:\Users\demo\Downloads\winbox-notes.md",
-                @"D:\Github\winbox\README.md",
-            ]).ConfigureAwait(true);
+            await search.RebuildIndexAsync().ConfigureAwait(true);
+            if (search is SearchPlugin searchPlugin)
+            {
+                Console.WriteLine($"Indexed {searchPlugin.IndexedCount} file(s) from configured roots.");
+            }
 
             var router = new QueryRouter(registry.GetMany<Abstractions.IQueryHandler>());
             var overlayState = new LauncherOverlayState();

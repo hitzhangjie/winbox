@@ -57,7 +57,7 @@ winbox/
 │   ├── WinBox.Abstractions/    # 插件、搜索、IQueryHandler 协议
 │   └── WinBox.Host/            # 宿主：热键、唤起层、QueryRouter
 ├── plugins/
-│   ├── search/WinBox.Search/   # 文件索引 + 搜索
+│   ├── search/WinBox.Search/   # 文件索引 + 搜索（设计见 plugins/search/README.md）
 │   └── toolbox/WinBox.Toolbox/ # 计算器 / CMD / Web / AI 骨架
 └── tests/
     ├── WinBox.Host.Tests/

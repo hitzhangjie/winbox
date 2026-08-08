@@ -68,6 +68,18 @@ Treat interface edits as **semver-sensitive** even before 1.0:
 - Windows-first APIs OK; isolate P/Invoke behind small facades for testability
 - Avoid premature multi-repo or package sprawl
 
+## Search indexing defaults (aligned)
+
+Canonical write-up: `plugins/search/README.md`. Agents implementing scan/index/incremental must follow it.
+
+- **Scope**: roots + extensions + optional path/ext allow/deny lists (capability required; deny wins)
+- **P1 index**: filename metadata only (`FullPath`, `FileName`, `Extension`, optional mtime/size); extension is a field, not a second index
+- **P1 query**: name-first substring/prefix; path secondary; no default full-text
+- **Full-text / title-summary**: optional later layers (`ContentIndex`), off by default
+- **Incremental**: cold full scan → runtime USN (primary) or `FileSystemWatcher` (interim on configured roots) → reconcile / rebuild on journal loss
+- **Symlinks/junctions**: do not follow in MVP
+- Put scanner policy, persistence, and watchers under `plugins/search/WinBox.Search/Index/`
+
 ## Decision test
 
 Before merging structure changes, answer:

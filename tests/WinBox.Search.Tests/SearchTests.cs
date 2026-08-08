@@ -46,6 +46,107 @@ public sealed class SubstringSearchEngineTests
     }
 }
 
+public sealed class IndexPolicyTests
+{
+    [Fact]
+    public void ShouldEnterDirectory_SkipsExcludedSegment()
+    {
+        var policy = new IndexPolicy(new IndexOptions
+        {
+            ExcludePathPatterns = [".git", "node_modules"],
+        });
+
+        Assert.False(policy.ShouldEnterDirectory(@"D:\repo\.git"));
+        Assert.False(policy.ShouldEnterDirectory(@"D:\repo\node_modules\pkg"));
+        Assert.True(policy.ShouldEnterDirectory(@"D:\repo\src"));
+    }
+
+    [Fact]
+    public void ShouldIncludeFile_ExcludeExtensionWins()
+    {
+        var policy = new IndexPolicy(new IndexOptions
+        {
+            IncludeExtensions = ["md", "txt"],
+            ExcludeExtensions = ["md"],
+            ExcludePathPatterns = [],
+        });
+
+        Assert.False(policy.ShouldIncludeFile(@"D:\docs\a.md"));
+        Assert.True(policy.ShouldIncludeFile(@"D:\docs\a.txt"));
+        Assert.False(policy.ShouldIncludeFile(@"D:\docs\a.go"));
+    }
+
+    [Fact]
+    public void ShouldIncludeFile_EmptyIncludeExtensions_AllowsAll()
+    {
+        var policy = new IndexPolicy(new IndexOptions
+        {
+            IncludeExtensions = [],
+            ExcludePathPatterns = [],
+        });
+
+        Assert.True(policy.ShouldIncludeFile(@"D:\a\readme.md"));
+        Assert.True(policy.ShouldIncludeFile(@"D:\a\main.go"));
+    }
+}
+
+public sealed class DirectoryScannerTests
+{
+    [Fact]
+    public void Scan_IndexesFilesUnderRoot_AndRespectsDenylist()
+    {
+        using var fixture = TempIndexFixture.Create();
+        fixture.WriteFile("readme.md", "# hello");
+        fixture.WriteFile("src/main.go", "package main");
+        fixture.WriteFile("node_modules/pkg/index.js", "module.exports = {}");
+        fixture.WriteFile(".git/config", "gitdir");
+
+        var scanner = new DirectoryScanner();
+        var entries = scanner.Scan(new IndexOptions
+        {
+            Roots = [fixture.Root],
+            ExcludePathPatterns = IndexOptions.DefaultExcludePathPatterns,
+            Recursive = true,
+        });
+
+        var names = entries.Select(e => e.FileName).OrderBy(n => n).ToArray();
+        Assert.Equal(["main.go", "readme.md"], names);
+        Assert.All(entries, e => Assert.False(string.IsNullOrEmpty(e.Extension)));
+        Assert.Contains(entries, e => e.Extension.Equals("go", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Scan_IncludeExtensions_FiltersTypes()
+    {
+        using var fixture = TempIndexFixture.Create();
+        fixture.WriteFile("a.md", "md");
+        fixture.WriteFile("b.go", "go");
+        fixture.WriteFile("c.txt", "txt");
+
+        var scanner = new DirectoryScanner();
+        var entries = scanner.Scan(new IndexOptions
+        {
+            Roots = [fixture.Root],
+            IncludeExtensions = ["md", "txt"],
+            ExcludePathPatterns = [],
+            Recursive = true,
+        });
+
+        Assert.Equal(2, entries.Count);
+        Assert.DoesNotContain(entries, e => e.Extension.Equals("go", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Scan_MissingRoot_ReturnsEmpty()
+    {
+        var scanner = new DirectoryScanner();
+        var entries = scanner.Scan(IndexOptions.ForDevRoots(
+            Path.Combine(Path.GetTempPath(), "winbox-missing-root-" + Guid.NewGuid().ToString("N"))));
+
+        Assert.Empty(entries);
+    }
+}
+
 public sealed class InMemoryFileIndexTests
 {
     [Fact]
@@ -56,6 +157,25 @@ public sealed class InMemoryFileIndexTests
         index.Upsert([@"C:\Demo\A.txt", @"c:\demo\a.txt"]);
 
         Assert.Equal(1, index.Count);
+    }
+
+    [Fact]
+    public void Upsert_Entry_StoresExtensionAndMtime()
+    {
+        using var fixture = TempIndexFixture.Create();
+        var path = fixture.WriteFile("notes.md", "body");
+        var info = new FileInfo(path);
+
+        var index = new InMemoryFileIndex();
+        index.Upsert(
+        [
+            new FileIndexEntry(info.FullName, info.Name, "md", info.LastWriteTimeUtc),
+        ]);
+
+        var snap = index.SnapshotEntries();
+        Assert.Single(snap);
+        Assert.Equal("md", snap[0].Extension);
+        Assert.Equal(info.LastWriteTimeUtc, snap[0].LastWriteTimeUtc);
     }
 }
 
@@ -84,5 +204,92 @@ public sealed class SearchPluginTests
         var hits = await plugin.SearchAsync("readme");
 
         Assert.Contains(hits, hit => hit.Name.Equals("README.md", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task RebuildIndex_FromTempRoot_ThenSearch_CleansUp()
+    {
+        using var fixture = TempIndexFixture.Create();
+        fixture.WriteFile("design-notes.md", "notes");
+        fixture.WriteFile("proposal/12345.md", "go proposal");
+        fixture.WriteFile("node_modules/ignore.js", "nope");
+
+        var plugin = new SearchPlugin(new IndexOptions
+        {
+            Roots = [fixture.Root],
+            ExcludePathPatterns = IndexOptions.DefaultExcludePathPatterns,
+            Recursive = true,
+        });
+
+        await plugin.StartAsync();
+        await plugin.RebuildIndexAsync();
+
+        Assert.Equal(2, plugin.IndexedCount);
+
+        var hits = await plugin.SearchAsync("proposal");
+        Assert.Contains(hits, h => h.Name.Equals("12345.md", StringComparison.OrdinalIgnoreCase));
+
+        var ignored = await plugin.SearchAsync("ignore");
+        Assert.DoesNotContain(ignored, h => h.Name.Equals("ignore.js", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task RebuildIndex_BeforeStart_Throws()
+    {
+        var plugin = new SearchPlugin(IndexOptions.ForDevRoots(@"D:\Github\proposal"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => plugin.RebuildIndexAsync());
+    }
+}
+
+/// <summary>
+/// Creates a unique temp tree for indexing tests and deletes it on dispose.
+/// </summary>
+internal sealed class TempIndexFixture : IDisposable
+{
+    private TempIndexFixture(string root)
+    {
+        Root = root;
+    }
+
+    public string Root { get; }
+
+    public static TempIndexFixture Create()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "winbox-index-tests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        return new TempIndexFixture(root);
+    }
+
+    public string WriteFile(string relativePath, string contents)
+    {
+        var fullPath = Path.Combine(Root, relativePath.Replace('/', Path.DirectorySeparatorChar));
+        var dir = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+
+        File.WriteAllText(fullPath, contents);
+        return fullPath;
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            if (Directory.Exists(Root))
+            {
+                Directory.Delete(Root, recursive: true);
+            }
+        }
+        catch (IOException)
+        {
+            // Best-effort cleanup; leftover dirs under %TEMP%\winbox-index-tests are OK.
+        }
     }
 }

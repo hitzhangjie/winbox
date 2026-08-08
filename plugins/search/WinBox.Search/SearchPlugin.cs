@@ -11,13 +11,25 @@ public sealed class SearchPlugin : IWinBoxPlugin, ISearchService, IQueryHandler
 
     private readonly InMemoryFileIndex _index = new();
     private readonly SubstringSearchEngine _engine = new();
+    private readonly DirectoryScanner _scanner = new();
+    private readonly IndexOptions _options;
     private int _started;
+
+    public SearchPlugin(IndexOptions? options = null)
+    {
+        _options = options ?? new IndexOptions();
+    }
 
     public string Id => "winbox.search";
     public string Name => "Search";
     public string Version => "0.1.0";
 
     public string HandlerId => Id;
+
+    /// <summary>Configured scan options (roots / allow-deny). Settings UI will edit this later.</summary>
+    public IndexOptions Options => _options;
+
+    public int IndexedCount => _index.Count;
 
     public Task StartAsync(CancellationToken cancellationToken = default)
     {
@@ -40,6 +52,17 @@ public sealed class SearchPlugin : IWinBoxPlugin, ISearchService, IQueryHandler
         cancellationToken.ThrowIfCancellationRequested();
         EnsureStarted();
         _index.Upsert(paths);
+        return Task.CompletedTask;
+    }
+
+    public Task RebuildIndexAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        EnsureStarted();
+
+        var entries = _scanner.Scan(_options, cancellationToken);
+        _index.Clear();
+        _index.Upsert(entries);
         return Task.CompletedTask;
     }
 

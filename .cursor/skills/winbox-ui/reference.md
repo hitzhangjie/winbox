@@ -143,15 +143,15 @@ make run
 7. Multi-monitor (if available): summon on active screen’s work area
 ```
 
-## Known gap backlog (do not treat as committed sprint)
+## Known gap backlog (status)
 
 Ordered for product feel vs effort:
 
-1. Result row template + kill horizontal scroll (P0)
-2. Overlay corner radius + selection styling (P1)
-3. Position drag + persist (P1)
-4. Empty / no-result + footer shortcut hints (P1)
-5. Tray multi-size ICO (P2)
-6. Settings section visual + button styling (P2)
+1. ~~Result row template + kill horizontal scroll (P0)~~ — done (Host `ResultRowView` + scroll policy)
+2. ~~Overlay corner radius + selection styling (P1)~~ — done (`WinBoxTheme` + chrome border)
+3. ~~Position drag + persist (P1)~~ — done (`ui-options.json`)
+4. ~~Empty / no-result + footer shortcut hints (P1)~~ — done
+5. Tray multi-size ICO (P2) — interim geometric tray mark; still want packaged `.ico`
+6. Settings section visual + button styling (P2) — token pass done; tabbed IA still open
 7. Mica / shadow / motion (P2–P3)
 8. Theme preference (P3)

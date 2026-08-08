@@ -28,40 +28,30 @@ internal sealed class IndexSettingsWindow : Window
         _store = store ?? throw new ArgumentNullException(nameof(store));
 
         Title = "WinBox — Index settings";
-        Width = 600;
-        Height = 640;
+        Width = 620;
+        Height = 660;
         MinWidth = 480;
         MinHeight = 480;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        Background = new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x24));
-        Foreground = Brushes.White;
+        Background = WinBoxTheme.SurfaceRaisedBrush;
+        Foreground = WinBoxTheme.TextPrimaryBrush;
+        FontFamily = WinBoxTheme.UiFont;
 
-        var root = new DockPanel { Margin = new Thickness(16) };
+        var root = new DockPanel { Margin = new Thickness(20) };
 
         var buttons = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 12, 0, 0),
+            Margin = new Thickness(0, 16, 0, 0),
         };
         DockPanel.SetDock(buttons, Dock.Bottom);
 
-        var saveButton = new Button
-        {
-            Content = "Save & rebuild",
-            Padding = new Thickness(12, 6, 12, 6),
-            Margin = new Thickness(0, 0, 8, 0),
-            MinWidth = 120,
-        };
+        var saveButton = CreateButton("Save & rebuild", primary: true, minWidth: 128);
         saveButton.Click += async (_, _) => await SaveAndRebuildAsync().ConfigureAwait(true);
 
-        var closeButton = new Button
-        {
-            Content = "Close",
-            Padding = new Thickness(12, 6, 12, 6),
-            MinWidth = 80,
-            IsCancel = true,
-        };
+        var closeButton = CreateButton("Close", primary: false, minWidth: 88);
+        closeButton.IsCancel = true;
         closeButton.Click += (_, _) => Close();
 
         buttons.Children.Add(saveButton);
@@ -70,9 +60,10 @@ internal sealed class IndexSettingsWindow : Window
 
         _statusText = new TextBlock
         {
-            Margin = new Thickness(0, 8, 0, 0),
-            Foreground = new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA)),
+            Margin = new Thickness(0, 10, 0, 0),
+            Foreground = WinBoxTheme.TextSecondaryBrush,
             TextWrapping = TextWrapping.Wrap,
+            FontSize = WinBoxTheme.FontSubtitle,
         };
         DockPanel.SetDock(_statusText, Dock.Bottom);
         root.Children.Add(_statusText);
@@ -113,8 +104,8 @@ internal sealed class IndexSettingsWindow : Window
         _recursiveBox = new CheckBox
         {
             Content = "Scan subfolders recursively",
-            Margin = new Thickness(0, 14, 0, 0),
-            Foreground = Brushes.White,
+            Margin = new Thickness(0, 16, 0, 0),
+            Foreground = WinBoxTheme.TextPrimaryBrush,
             IsChecked = true,
         };
         form.Children.Add(_recursiveBox);
@@ -223,46 +214,57 @@ internal sealed class IndexSettingsWindow : Window
     {
         Text = text,
         FontWeight = FontWeights.SemiBold,
-        Margin = new Thickness(0, 8, 0, 2),
-        Foreground = Brushes.White,
+        FontSize = WinBoxTheme.FontTitle,
+        Margin = new Thickness(0, 12, 0, 2),
+        Foreground = WinBoxTheme.TextPrimaryBrush,
     };
 
     private static TextBlock Hint(string text) => new()
     {
         Text = text,
-        FontSize = 11,
-        Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
+        FontSize = WinBoxTheme.FontSubtitle,
+        Foreground = WinBoxTheme.TextSecondaryBrush,
         Margin = new Thickness(0, 0, 0, 6),
         TextWrapping = TextWrapping.Wrap,
     };
 
-    private static ListBox PathListBox(double height = 100) => new()
+    private static ListBox PathListBox(double height = 100)
     {
-        Height = height,
-        Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-        Foreground = Brushes.White,
-        BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
-    };
+        var list = new ListBox
+        {
+            Height = height,
+            Background = WinBoxTheme.SurfaceSunkenBrush,
+            Foreground = WinBoxTheme.TextPrimaryBrush,
+            BorderBrush = WinBoxTheme.BorderSubtleBrush,
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(4),
+        };
+        ScrollViewer.SetHorizontalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
+        ScrollViewer.SetVerticalScrollBarVisibility(list, ScrollBarVisibility.Auto);
+
+        var template = new DataTemplate(typeof(string));
+        var textFactory = new FrameworkElementFactory(typeof(TextBlock));
+        textFactory.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding());
+        textFactory.SetBinding(FrameworkElement.ToolTipProperty, new System.Windows.Data.Binding());
+        textFactory.SetValue(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
+        textFactory.SetValue(TextBlock.TextWrappingProperty, TextWrapping.NoWrap);
+        textFactory.SetValue(TextBlock.PaddingProperty, new Thickness(6, 3, 6, 3));
+        template.VisualTree = textFactory;
+        list.ItemTemplate = template;
+        return list;
+    }
 
     private static StackPanel PathListButtons(Action add, Action remove)
     {
         var row = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 6, 0, 4),
+            Margin = new Thickness(0, 8, 0, 4),
         };
-        var addButton = new Button
-        {
-            Content = "Add folder…",
-            Padding = new Thickness(10, 4, 10, 4),
-            Margin = new Thickness(0, 0, 8, 0),
-        };
+        var addButton = CreateButton("Add folder…", primary: false);
         addButton.Click += (_, _) => add();
-        var removeButton = new Button
-        {
-            Content = "Remove",
-            Padding = new Thickness(10, 4, 10, 4),
-        };
+        var removeButton = CreateButton("Remove", primary: false);
+        removeButton.Margin = new Thickness(8, 0, 0, 0);
         removeButton.Click += (_, _) => remove();
         row.Children.Add(addButton);
         row.Children.Add(removeButton);
@@ -276,12 +278,14 @@ internal sealed class IndexSettingsWindow : Window
             AcceptsReturn = acceptReturn,
             TextWrapping = acceptReturn ? TextWrapping.Wrap : TextWrapping.NoWrap,
             VerticalScrollBarVisibility = acceptReturn ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled,
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x3A, 0x3A, 0x3A)),
-            CaretBrush = Brushes.White,
-            Padding = new Thickness(8, 6, 8, 6),
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Background = WinBoxTheme.SurfaceSunkenBrush,
+            Foreground = WinBoxTheme.TextPrimaryBrush,
+            BorderBrush = WinBoxTheme.BorderSubtleBrush,
+            CaretBrush = WinBoxTheme.TextPrimaryBrush,
+            Padding = new Thickness(10, 8, 10, 8),
             Margin = new Thickness(0, 0, 0, 4),
+            FontFamily = WinBoxTheme.UiFont,
         };
 
         if (height is not null)
@@ -290,5 +294,34 @@ internal sealed class IndexSettingsWindow : Window
         }
 
         return box;
+    }
+
+    private static Button CreateButton(string content, bool primary, double minWidth = 0)
+    {
+        var button = new Button
+        {
+            Content = content,
+            Padding = new Thickness(14, 8, 14, 8),
+            Margin = primary ? new Thickness(0, 0, 8, 0) : new Thickness(0),
+            MinWidth = minWidth,
+            FontFamily = WinBoxTheme.UiFont,
+            Cursor = System.Windows.Input.Cursors.Hand,
+            BorderThickness = new Thickness(1),
+        };
+
+        if (primary)
+        {
+            button.Background = WinBoxTheme.PrimaryButtonBrush;
+            button.Foreground = WinBoxTheme.TextPrimaryBrush;
+            button.BorderBrush = WinBoxTheme.PrimaryButtonBrush;
+        }
+        else
+        {
+            button.Background = WinBoxTheme.SurfaceSunkenBrush;
+            button.Foreground = WinBoxTheme.TextPrimaryBrush;
+            button.BorderBrush = WinBoxTheme.BorderSubtleBrush;
+        }
+
+        return button;
     }
 }

@@ -20,6 +20,7 @@ internal static class Program
 
         var optionsStore = new IndexOptionsStore(IndexOptionsStore.DefaultFilePath);
         var indexOptions = optionsStore.LoadOrDefault();
+        var uiStore = new UiOptionsStore(UiOptionsStore.DefaultFilePath);
 
         var registry = new PluginRegistry();
         var searchPlugin = new SearchPlugin(indexOptions);
@@ -34,7 +35,7 @@ internal static class Program
             ShutdownMode = ShutdownMode.OnExplicitShutdown,
         };
 
-        app.Startup += (_, _) => OnStartup(app, registry, searchPlugin, optionsStore);
+        app.Startup += (_, _) => OnStartup(app, registry, searchPlugin, optionsStore, uiStore);
 
         app.Run();
     }
@@ -43,7 +44,8 @@ internal static class Program
         Application app,
         PluginRegistry registry,
         SearchPlugin searchPlugin,
-        IndexOptionsStore optionsStore)
+        IndexOptionsStore optionsStore,
+        UiOptionsStore uiStore)
     {
         AppTrayIcon? tray = null;
         GlobalHotkey? launcherHotkey = null;
@@ -58,7 +60,7 @@ internal static class Program
             var router = new QueryRouter(registry.GetMany<Abstractions.IQueryHandler>());
             var overlayState = new LauncherOverlayState();
             var session = new LauncherQuerySession(router, overlayState);
-            var overlay = new LauncherOverlayWindow(overlayState, session);
+            var overlay = new LauncherOverlayWindow(overlayState, session, uiStore);
             _ = new WindowInteropHelper(overlay).EnsureHandle();
 
             IndexSettingsWindow? settingsWindow = null;

@@ -1,6 +1,5 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using System.Drawing.Text;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows.Threading;
@@ -126,17 +125,19 @@ internal static class TrayIconFactory
 {
     public static DrawingIcon Create()
     {
+        // Geometric mark readable at 16px: rounded tile + magnifier (no letterform).
         using var bmp = new Bitmap(16, 16);
         using (var g = Graphics.FromImage(bmp))
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-            g.Clear(Color.FromArgb(255, 0x22, 0x22, 0x22));
-            using var accent = new SolidBrush(Color.FromArgb(255, 0x8A, 0xC7, 0xFF));
-            g.FillEllipse(accent, 1, 1, 14, 14);
-            using var ink = new SolidBrush(Color.FromArgb(255, 0x18, 0x18, 0x18));
-            using var font = new Font("Segoe UI", 8f, FontStyle.Bold, GraphicsUnit.Pixel);
-            g.DrawString("W", font, ink, 2.5f, 1.5f);
+            g.Clear(Color.Transparent);
+            using var tile = new SolidBrush(Color.FromArgb(255, 0x1C, 0x1C, 0x1C));
+            using var tilePath = RoundedRect(1, 1, 14, 14, 3);
+            g.FillPath(tile, tilePath);
+
+            using var accent = new Pen(Color.FromArgb(255, 0x8A, 0xC7, 0xFF), 1.6f);
+            g.DrawEllipse(accent, 3.5f, 3.2f, 7.2f, 7.2f);
+            g.DrawLine(accent, 9.8f, 9.6f, 12.4f, 12.2f);
         }
 
         var handle = bmp.GetHicon();
@@ -149,6 +150,18 @@ internal static class TrayIconFactory
         {
             _ = DestroyIconNative.DestroyIcon(handle);
         }
+    }
+
+    private static GraphicsPath RoundedRect(float x, float y, float w, float h, float r)
+    {
+        var path = new GraphicsPath();
+        var d = r * 2;
+        path.AddArc(x, y, d, d, 180, 90);
+        path.AddArc(x + w - d, y, d, d, 270, 90);
+        path.AddArc(x + w - d, y + h - d, d, d, 0, 90);
+        path.AddArc(x, y + h - d, d, d, 90, 90);
+        path.CloseFigure();
+        return path;
     }
 
     private static class DestroyIconNative

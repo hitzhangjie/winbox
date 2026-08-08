@@ -11,7 +11,7 @@ help:
 	@echo "  make restore   - restore NuGet packages"
 	@echo "  make build     - build solution (CONFIG=$(CONFIG))"
 	@echo "  make test      - run all tests"
-	@echo "  make run       - run host console demo"
+	@echo "  make run       - run host (Shift+Alt+U launcher)"
 	@echo "  make clean     - clean build outputs"
 	@echo "  make rebuild   - clean + build"
 	@echo "  make ci        - Release restore/build/test (like CI)"

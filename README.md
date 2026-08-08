@@ -70,7 +70,7 @@ winbox/
 make help      # 查看常用命令
 make build     # 编译
 make test      # 跑测试
-make run       # 启动宿主演示（输入查询，空行退出）
+make run       # 启动宿主（Shift+Alt+U 唤起输入框，Esc 关闭）
 make ci        # 对齐 CI：Release 编译 + 测试
 ```
 

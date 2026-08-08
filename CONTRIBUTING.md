@@ -14,7 +14,7 @@
 make help      # 看常用命令
 make build     # 编译
 make test      # 跑测试（改代码后建议必跑）
-make run       # 启动控制台演示：输入关键字搜索，空行退出
+make run       # 启动宿主：Shift+Alt+U 唤起输入框，Esc 关闭，Ctrl+C 退出
 make ci        # 对齐 GitHub CI：Release 编译 + 测试
 ```
 
@@ -43,7 +43,7 @@ make ci        # 对齐 GitHub CI：Release 编译 + 测试
 WinBox.sln
 ├── src/
 │   ├── WinBox.Abstractions/   ← 合同：接口，几乎没有实现
-│   └── WinBox.Host/           ← 宿主：启动、注册插件、演示交互（当前是控制台）
+│   └── WinBox.Host/           ← 宿主：启动、注册插件、全局热键与唤起层
 ├── plugins/search/
 │   └── WinBox.Search/         ← 能力：真正的索引 + 搜索
 │       ├── Index/             ← 存路径（现在是内存）
@@ -75,7 +75,7 @@ WinBox.Host ──────────► WinBox.Abstractions
 1. **注册**：`new SearchPlugin()` 放进 `PluginRegistry`
 2. **启动**：`StartAllAsync()` → 每个插件的 `StartAsync()`
 3. **按能力取用**：`GetRequired<ISearchService>()` —— 要的是「能搜索」，不是某个具体类名
-4. **建索引 → 查询循环**：用户输入 → `SearchAsync` → 打印结果 → 退出时 `StopAllAsync`
+4. **建索引 → 热键待命**：注册 `Shift+Alt+U`，唤起输入框；`Esc` 关闭；`Ctrl+C` 时 `StopAllAsync`
 
 搜索插件 `SearchPlugin` 同时实现两个接口：
 
@@ -97,7 +97,8 @@ WinBox.Host ──────────► WinBox.Abstractions
 |----------|-------------------|
 | 多项目解决方案 + 清晰引用关系 | 从磁盘自动发现插件（现在是代码里 `new`） |
 | 插件启停合同 | 真实扫盘、增量索引（如 USN） |
-| 内存索引 + 子串搜索 | 全局热键、图形搜索框 |
+| 内存索引 + 子串搜索 | 输入框接搜索 / 结果列表 |
+| 全局热键 + 简易唤起输入框（Host） | 托盘、可配置热键、真实扫盘 |
 | 单元测试 + Makefile + GitHub Actions CI | 进程隔离、按需安装插件包 |
 
 改代码前先对一下表，避免在「尚未存在的能力」上空转。
@@ -109,7 +110,7 @@ WinBox.Host ──────────► WinBox.Abstractions
 | 你想做的事 | 优先看 / 改 |
 |------------|-------------|
 | 改插件合同（启停、搜索 API） | `src/WinBox.Abstractions/`，并同步改实现与测试 |
-| 改宿主如何注册、启动插件 | `src/WinBox.Host/` |
+| 改宿主注册、启停、热键 / 唤起层 | `src/WinBox.Host/`（UI 在 `Ui/`） |
 | 改索引存储或扫描逻辑 | `plugins/search/WinBox.Search/Index/` |
 | 改匹配、排序、查询行为 | `plugins/search/WinBox.Search/Query/` |
 | 改搜索插件对外行为 | `plugins/search/WinBox.Search/SearchPlugin.cs` |

@@ -18,6 +18,7 @@ Agents bring: skills in `.cursor/skills/` for zero-cost startup and quality enfo
 3. **Where to put code / new project / references** → `winbox-architecture`.
 4. **Tests or CI failures** → `winbox-testing`.
 5. **PR, review, release, distribute** → `winbox-ship`.
+6. **Launcher overlay, tray, settings, result rows, scrolling, theming, or user-visible Host.Ui** → follow `winbox-ui` (design pillars + PR checklist).
 
 ## Non-negotiables
 
@@ -25,3 +26,4 @@ Agents bring: skills in `.cursor/skills/` for zero-cost startup and quality enfo
 - Do not reverse dependency direction (plugins must not reference Host).
 - Do not expand scope into unrelated refactors while implementing an idea.
 - Keep CONTRIBUTING.md and skills in sync when process changes.
+- UI changes must not introduce horizontal scroll on launcher results; Host owns chrome, plugins own result content.

@@ -40,6 +40,8 @@ If intent is vague, ask **one** clarifying question before coding.
 
 Read [winbox-architecture](../winbox-architecture/SKILL.md). Wrong folder is a process failure even if tests pass.
 
+If the change is user-visible UI (overlay, tray, settings, result presentation, scroll/theme), also read [winbox-ui](../winbox-ui/SKILL.md) before implementing.
+
 ### 3. Contract
 
 - Prefer extending implementations under `plugins/` or Host helpers.

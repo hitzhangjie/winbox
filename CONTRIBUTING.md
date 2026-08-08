@@ -100,7 +100,7 @@ WinBox.Host ──────────► WinBox.Abstractions
 | 插件启停合同 + 按策略扫盘建文件名索引 | 持久化索引文件本身 |
 | 内存索引 + 子串搜索（默认输入） | OpenPath 等激活动作 |
 | 索引设置面板（托盘 → Index settings）+ JSON 配置 | Watcher / USN 增量、全文/标题可选索引 |
-| 全局热键 + 托盘 + 唤起层 + QueryRouter | 可配置热键、结果区尺寸定制 |
+| 全局热键 + 托盘 + 唤起层 + QueryRouter | 可配置热键；launcher UI 设计系统见 `winbox-ui`（圆角/结果行/位置持久化等） |
 | Web 前缀（google/gg）、计算器、`>` CMD、`?` AI 骨架 | Web/AI 设置面板、LLM 流式、别名编辑 |
 | 单元测试 + Makefile + GitHub Actions CI | 进程隔离、按需安装插件包 |
 
@@ -113,7 +113,7 @@ WinBox.Host ──────────► WinBox.Abstractions
 | 你想做的事 | 优先看 / 改 |
 |------------|-------------|
 | 改插件合同（启停、搜索、查询分流） | `src/WinBox.Abstractions/`，并同步改实现与测试 |
-| 改宿主注册、启停、热键 / 唤起层 / Router / 索引设置窗 | `src/WinBox.Host/`（UI 在 `Ui/`，路由在 `Query/`） |
+| 改宿主注册、启停、热键 / 唤起层 / Router / 索引设置窗 | `src/WinBox.Host/`（UI 在 `Ui/`，路由在 `Query/`）；视觉与交互规范见 `.cursor/skills/winbox-ui` |
 | 改索引存储、扫描、配置持久化 | `plugins/search/WinBox.Search/Index/` |
 | 改匹配、排序、查询行为 | `plugins/search/WinBox.Search/Query/` |
 | 改搜索插件对外行为 | `plugins/search/WinBox.Search/SearchPlugin.cs` |
@@ -144,6 +144,7 @@ WinBox.Host ──────────► WinBox.Abstractions
 | `.cursor/skills/winbox-onboarding` | 第一次进仓、环境与定向 |
 | `.cursor/skills/winbox-change-loop` | **任何改动的默认闭环**（必走） |
 | `.cursor/skills/winbox-architecture` | 目录边界与依赖法则 |
+| `.cursor/skills/winbox-ui` | 唤起层 / 托盘 / 设置 / 结果行的设计与交互规范 |
 | `.cursor/skills/winbox-testing` | 测试与 CI 门槛 |
 | `.cursor/skills/winbox-ship` | PR / 评审 / 发版分发 |
 

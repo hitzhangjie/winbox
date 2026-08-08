@@ -2,9 +2,10 @@ namespace WinBox.Host.Ui;
 
 public enum SettingsTab
 {
-    Index = 0,
-    Appearance = 1,
-    Shortcuts = 2,
+    General = 0,
+    Index = 1,
+    Appearance = 2,
+    Shortcuts = 3,
 }
 
 /// <summary>When the launcher vertical scrollbar is shown.</summary>
@@ -45,4 +46,7 @@ public sealed class UiOptions
 
     /// <summary>dark | light | system</summary>
     public string Theme { get; set; } = "dark";
+
+    /// <summary>Start WinBox when the user signs in to Windows (HKCU Run).</summary>
+    public bool StartWithWindows { get; set; }
 }

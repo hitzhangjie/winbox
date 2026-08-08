@@ -85,6 +85,7 @@ public sealed class UiOptionsStore
             ScrollBarWidth = Clamp(options.ScrollBarWidth, 4, 16, 8),
             ScrollBarMode = UiLayout.ToStorage(UiLayout.ParseScrollBarMode(options.ScrollBarMode)),
             Theme = WinBoxTheme.ToStorage(WinBoxTheme.ParseTheme(options.Theme)),
+            StartWithWindows = options.StartWithWindows,
         };
     }
 

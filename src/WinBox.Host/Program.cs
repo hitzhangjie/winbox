@@ -1,4 +1,5 @@
-﻿using System.Windows;
+using System.IO;
+using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using WinBox.Host.Query;
@@ -24,6 +25,7 @@ internal static class Program
         var uiOptions = uiStore.LoadOrDefault();
         WinBoxTheme.Apply(WinBoxTheme.ParseTheme(uiOptions.Theme));
         UiLayout.Apply(uiOptions);
+        TrySyncLoginAutoStart(uiOptions.StartWithWindows);
 
         var registry = new PluginRegistry();
         var searchPlugin = new SearchPlugin(indexOptions);
@@ -151,6 +153,18 @@ internal static class Program
             launcherHotkey?.Dispose();
             Console.Error.WriteLine($"Startup failed: {ex}");
             app.Shutdown(1);
+        }
+    }
+
+    private static void TrySyncLoginAutoStart(bool startWithWindows)
+    {
+        try
+        {
+            new LoginAutoStart().ApplyPreference(startWithWindows);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            Console.Error.WriteLine($"Login auto-start sync skipped: {ex.Message}");
         }
     }
 }

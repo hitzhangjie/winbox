@@ -9,19 +9,21 @@ using WinBox.Search.Index;
 namespace WinBox.Host.Ui;
 
 /// <summary>
-/// Host settings: Index scope, Appearance (theme), Shortcuts reference.
+/// Host settings: General (startup), Index scope, Appearance, Shortcuts.
 /// </summary>
 internal sealed class IndexSettingsWindow : Window
 {
     private readonly SearchPlugin _search;
     private readonly IndexOptionsStore _indexStore;
     private readonly UiOptionsStore _uiStore;
+    private readonly LoginAutoStart _loginAutoStart;
     private readonly ListBox _rootsList;
     private readonly ListBox _excludeRootsList;
     private readonly TextBox _includeExtensionsBox;
     private readonly TextBox _excludeExtensionsBox;
     private readonly TextBox _excludePatternsBox;
     private readonly CheckBox _recursiveBox;
+    private readonly CheckBox _startWithWindowsBox;
     private readonly ComboBox _themeBox;
     private readonly Slider _widthSlider;
     private readonly Slider _resultsHeightSlider;
@@ -49,6 +51,7 @@ internal sealed class IndexSettingsWindow : Window
         _search = search ?? throw new ArgumentNullException(nameof(search));
         _indexStore = indexStore ?? throw new ArgumentNullException(nameof(indexStore));
         _uiStore = uiStore ?? throw new ArgumentNullException(nameof(uiStore));
+        _loginAutoStart = new LoginAutoStart();
 
         Title = "WinBox — Settings";
         Width = 660;
@@ -117,6 +120,23 @@ internal sealed class IndexSettingsWindow : Window
 
         _tabs = new TabControl();
         SettingsChrome.ApplyTabControl(_tabs);
+
+        var general = new StackPanel();
+        general.Children.Add(SectionLabel("Startup", first: true));
+        general.Children.Add(Hint("Registers WinBox under your Windows sign-in (HKCU Run). No admin required."));
+        _startWithWindowsBox = new CheckBox
+        {
+            Content = "Start WinBox when I sign in",
+            Margin = new Thickness(2, 4, 0, 4),
+            Foreground = WinBoxTheme.TextPrimaryBrush,
+            FontFamily = WinBoxTheme.UiFont,
+            FocusVisualStyle = null,
+        };
+        _startWithWindowsBox.Checked += (_, _) => PersistGeneralFromUi();
+        _startWithWindowsBox.Unchecked += (_, _) => PersistGeneralFromUi();
+        general.Children.Add(_startWithWindowsBox);
+        general.Children.Add(Hint("After moving WinBox, turn this off and on again to refresh the path."));
+        _tabs.Items.Add(CreateTab("General", WrapScroll(general)));
 
         var indexForm = new StackPanel();
         indexForm.Children.Add(SectionLabel("Index roots", first: true));
@@ -228,21 +248,34 @@ internal sealed class IndexSettingsWindow : Window
             _saveButton.Visibility = _tabs.SelectedIndex == (int)SettingsTab.Index
                 ? Visibility.Visible
                 : Visibility.Collapsed;
+            if (_tabs.SelectedIndex >= 0 && _tabs.SelectedIndex <= (int)SettingsTab.Shortcuts)
+            {
+                UpdateStatus(StatusForTab((SettingsTab)_tabs.SelectedIndex));
+            }
         };
 
         root.Children.Add(_tabs);
         Content = root;
 
         LoadFromOptions(_search.Options);
+        LoadGeneralFromStore();
         LoadAppearanceFromStore();
         _tabs.SelectedIndex = (int)initialTab;
         _saveButton.Visibility = initialTab == SettingsTab.Index ? Visibility.Visible : Visibility.Collapsed;
-        UpdateStatus(initialTab == SettingsTab.Appearance
-            ? $"Appearance · {_uiStore.FilePath}"
-            : $"Index config: {_indexStore.FilePath}");
+        UpdateStatus(StatusForTab(initialTab));
         WinBoxTheme.Changed += OnHostThemeChanged;
         Closed += (_, _) => WinBoxTheme.Changed -= OnHostThemeChanged;
     }
+
+    private string StatusForTab(SettingsTab tab) => tab switch
+    {
+        SettingsTab.General => _startWithWindowsBox.IsChecked == true
+            ? "Will start with Windows sign-in."
+            : "Won't start automatically.",
+        SettingsTab.Appearance => $"Appearance · {_uiStore.FilePath}",
+        SettingsTab.Shortcuts => "Keyboard & tray reference",
+        _ => $"Index config: {_indexStore.FilePath}",
+    };
 
     public void ShowTab(SettingsTab tab)
     {
@@ -293,6 +326,56 @@ internal sealed class IndexSettingsWindow : Window
         row.Children.Add(slider);
         parent.Children.Add(row);
         return (slider, value);
+    }
+
+    private void LoadGeneralFromStore()
+    {
+        _loadingAppearance = true;
+        try
+        {
+            var options = _uiStore.LoadOrDefault();
+            // Prefer persisted preference; fall back to live Run key if JSON never set it.
+            _startWithWindowsBox.IsChecked = options.StartWithWindows || _loginAutoStart.IsEnabled();
+        }
+        finally
+        {
+            _loadingAppearance = false;
+        }
+    }
+
+    private void PersistGeneralFromUi()
+    {
+        if (_loadingAppearance)
+        {
+            return;
+        }
+
+        var enabled = _startWithWindowsBox.IsChecked == true;
+        var options = _uiStore.LoadOrDefault();
+        options.StartWithWindows = enabled;
+
+        try
+        {
+            _loginAutoStart.SetEnabled(enabled);
+            _uiStore.Save(options);
+            UpdateStatus(enabled
+                ? "Start with Windows enabled."
+                : "Start with Windows disabled.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _loadingAppearance = true;
+            try
+            {
+                _startWithWindowsBox.IsChecked = _loginAutoStart.IsEnabled();
+            }
+            finally
+            {
+                _loadingAppearance = false;
+            }
+
+            UpdateStatus($"Start with Windows failed: {ex.Message}");
+        }
     }
 
     private void LoadAppearanceFromStore()
@@ -399,6 +482,7 @@ internal sealed class IndexSettingsWindow : Window
         Foreground = WinBoxTheme.TextPrimaryBrush;
         _statusText.Foreground = WinBoxTheme.TextSecondaryBrush;
         _recursiveBox.Foreground = WinBoxTheme.TextPrimaryBrush;
+        _startWithWindowsBox.Foreground = WinBoxTheme.TextPrimaryBrush;
 
         SettingsChrome.ApplyTabControl(_tabs);
         SettingsChrome.StyleEmbeddedField(_includeExtensionsBox);

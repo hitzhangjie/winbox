@@ -9,10 +9,19 @@ namespace WinBox.Host.Ui;
 
 /// <summary>
 /// Builds a multi-resolution WinBox tray icon (16/20/24/32/48) as a real .ico stream.
+/// Mark is a 2×2 window of rounded panes (Microsoft-logo-inspired silhouette),
+/// not a lettermark or search glyph — reads as a capability "box".
 /// </summary>
 public static class TrayIconFactory
 {
     private static readonly int[] Sizes = [16, 20, 24, 32, 48];
+
+    // Four-pane palette: same grammar as the Microsoft company mark (2×2 window),
+    // hues shifted cooler / softer so we are inspired, not a clone.
+    private static readonly Color PaneTopLeft = Color.FromArgb(255, 0xE2, 0x5B, 0x4A);
+    private static readonly Color PaneTopRight = Color.FromArgb(255, 0x6C, 0xB8, 0x2E);
+    private static readonly Color PaneBottomLeft = Color.FromArgb(255, 0x2A, 0x9C, 0xD6);
+    private static readonly Color PaneBottomRight = Color.FromArgb(255, 0xEF, 0xB1, 0x2D);
 
     public static DrawingIcon Create()
     {
@@ -102,38 +111,45 @@ public static class TrayIconFactory
         g.PixelOffsetMode = PixelOffsetMode.HighQuality;
         g.Clear(Color.Transparent);
 
-        // Circular badge reads cleaner at 16px than a rounded square.
-        var pad = Math.Max(0.75f, size * 0.06f);
-        var dia = size - (pad * 2);
-        using (var tile = new SolidBrush(Color.FromArgb(255, 0x2A, 0x6F, 0xB5)))
-        {
-            g.FillEllipse(tile, pad, pad, dia, dia);
-        }
+        // Outer margin + cross gap: keep panes chunky at 16px tray size.
+        var margin = Math.Max(1f, size * 0.08f);
+        var gap = Math.Max(1.25f, size * 0.08f);
+        var pane = (size - (margin * 2) - gap) / 2f;
+        var radius = Math.Max(1.1f, size * 0.10f);
 
-        // Soft inner highlight for depth at larger sizes.
-        if (size >= 24)
-        {
-            using var shine = new SolidBrush(Color.FromArgb(36, 255, 255, 255));
-            g.FillEllipse(shine, pad + dia * 0.14f, pad + dia * 0.10f, dia * 0.55f, dia * 0.38f);
-        }
+        FillPane(g, margin, margin, pane, pane, radius, PaneTopLeft);
+        FillPane(g, margin + pane + gap, margin, pane, pane, radius, PaneTopRight);
+        FillPane(g, margin, margin + pane + gap, pane, pane, radius, PaneBottomLeft);
+        FillPane(g, margin + pane + gap, margin + pane + gap, pane, pane, radius, PaneBottomRight);
 
-        var stroke = Math.Max(1.25f, size * 0.10f);
-        using var glass = new Pen(Color.FromArgb(255, 0xF7, 0xFA, 0xFF), stroke)
-        {
-            StartCap = LineCap.Round,
-            EndCap = LineCap.Round,
-        };
-
-        var lens = size * 0.38f;
-        var lensLeft = size * 0.26f;
-        var lensTop = size * 0.24f;
-        g.DrawEllipse(glass, lensLeft, lensTop, lens, lens);
-
-        var handleStartX = lensLeft + lens * 0.72f;
-        var handleStartY = lensTop + lens * 0.72f;
-        var handleEnd = size * 0.76f;
-        g.DrawLine(glass, handleStartX, handleStartY, handleEnd, handleEnd);
         return bmp;
+    }
+
+    private static void FillPane(
+        Graphics g,
+        float x,
+        float y,
+        float width,
+        float height,
+        float radius,
+        Color color)
+    {
+        var r = Math.Min(radius, Math.Min(width, height) / 2f);
+        using var path = CreateRoundedRect(x, y, width, height, r);
+        using var brush = new SolidBrush(color);
+        g.FillPath(brush, path);
+    }
+
+    private static GraphicsPath CreateRoundedRect(float x, float y, float width, float height, float radius)
+    {
+        var path = new GraphicsPath();
+        var d = radius * 2f;
+        path.AddArc(x, y, d, d, 180, 90);
+        path.AddArc(x + width - d, y, d, d, 270, 90);
+        path.AddArc(x + width - d, y + height - d, d, d, 0, 90);
+        path.AddArc(x, y + height - d, d, d, 90, 90);
+        path.CloseFigure();
+        return path;
     }
 
     private static byte[] EncodeBmpIconImage(Bitmap bmp)

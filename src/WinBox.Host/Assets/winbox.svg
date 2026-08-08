@@ -1,0 +1,7 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="WinBox">
+  <!-- 2×2 window panes (Microsoft company-mark inspired). Not a lettermark or search glyph. -->
+  <rect x="2.5" y="2.5" width="12.5" height="12.5" rx="2.4" fill="#E25B4A"/>
+  <rect x="17" y="2.5" width="12.5" height="12.5" rx="2.4" fill="#6CB82E"/>
+  <rect x="2.5" y="17" width="12.5" height="12.5" rx="2.4" fill="#2A9CD6"/>
+  <rect x="17" y="17" width="12.5" height="12.5" rx="2.4" fill="#EFB12D"/>
+</svg>

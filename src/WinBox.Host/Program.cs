@@ -23,16 +23,19 @@ internal static class Program
         var indexOptions = optionsStore.LoadOrDefault();
         var uiStore = new UiOptionsStore(UiOptionsStore.DefaultFilePath);
         var uiOptions = uiStore.LoadOrDefault();
+        var webStore = new WebSearchOptionsStore(WebSearchOptionsStore.DefaultFilePath);
+        var webOptions = webStore.LoadOrDefault();
         WinBoxTheme.Apply(WinBoxTheme.ParseTheme(uiOptions.Theme));
         UiLayout.Apply(uiOptions);
         TrySyncLoginAutoStart(uiOptions.StartWithWindows);
 
         var registry = new PluginRegistry();
         var searchPlugin = new SearchPlugin(indexOptions);
+        var webPlugin = new WebSearchPlugin(webOptions.Entries);
         registry.Register(searchPlugin);
         registry.Register(new CalculatorPlugin());
         registry.Register(new ShellPlugin());
-        registry.Register(new WebSearchPlugin());
+        registry.Register(webPlugin);
         registry.Register(new AiPlugin());
 
         var app = new Application
@@ -40,7 +43,7 @@ internal static class Program
             ShutdownMode = ShutdownMode.OnExplicitShutdown,
         };
 
-        app.Startup += (_, _) => OnStartup(app, registry, searchPlugin, optionsStore, uiStore);
+        app.Startup += (_, _) => OnStartup(app, registry, searchPlugin, optionsStore, uiStore, webPlugin, webStore);
 
         app.Run();
     }
@@ -50,7 +53,9 @@ internal static class Program
         PluginRegistry registry,
         SearchPlugin searchPlugin,
         IndexOptionsStore optionsStore,
-        UiOptionsStore uiStore)
+        UiOptionsStore uiStore,
+        WebSearchPlugin webPlugin,
+        WebSearchOptionsStore webStore)
     {
         AppTrayIcon? tray = null;
         GlobalHotkey? launcherHotkey = null;
@@ -95,7 +100,13 @@ internal static class Program
                     return;
                 }
 
-                settingsWindow = new IndexSettingsWindow(searchPlugin, optionsStore, uiStore, tab);
+                settingsWindow = new IndexSettingsWindow(
+                    searchPlugin,
+                    optionsStore,
+                    uiStore,
+                    webPlugin,
+                    webStore,
+                    tab);
                 settingsWindow.Closed += (_, _) => settingsWindow = null;
                 settingsWindow.Show();
                 BringSettingsToFront(settingsWindow);
@@ -160,7 +171,7 @@ internal static class Program
             }
 
             Console.WriteLine("  Esc          dismiss launcher");
-            Console.WriteLine("  routes: file search | google/gg | math | > cmd | ? ai");
+            Console.WriteLine("  routes: file search | web keywords (gg/so/yt/x…) | math | > cmd | ? ai");
             Console.WriteLine("  Ctrl+C       quit");
         }
         catch (Exception ex)

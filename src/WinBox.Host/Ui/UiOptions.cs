@@ -4,8 +4,9 @@ public enum SettingsTab
 {
     General = 0,
     Index = 1,
-    Appearance = 2,
-    Shortcuts = 3,
+    Web = 2,
+    Appearance = 3,
+    Shortcuts = 4,
 }
 
 /// <summary>When the launcher vertical scrollbar is shown.</summary>

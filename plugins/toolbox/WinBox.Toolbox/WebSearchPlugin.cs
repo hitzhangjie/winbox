@@ -1,27 +1,55 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using WinBox.Abstractions;
 
 namespace WinBox.Toolbox;
 
 /// <summary>
-/// Custom web-search prefixes (e.g. <c>google</c> / <c>gg</c> + space). Alias settings panel later.
+/// Configurable web-search prefixes (e.g. <c>gg</c> / <c>so</c> + space). Edited via Host settings.
 /// </summary>
 public sealed class WebSearchPlugin : IWinBoxPlugin, IQueryHandler
 {
     public const int MatchPriority = 80;
 
-    private readonly IReadOnlyList<WebSearchAlias> _aliases;
+    private readonly object _gate = new();
+    private IReadOnlyList<WebSearchEntry> _entries;
 
-    public WebSearchPlugin(IEnumerable<WebSearchAlias>? aliases = null)
+    public WebSearchPlugin(IEnumerable<WebSearchEntry>? entries = null)
     {
-        _aliases = (aliases ?? DefaultAliases()).ToList();
+        _entries = Array.Empty<WebSearchEntry>();
+        ApplyOptions(new WebSearchOptions
+        {
+            Entries = (entries ?? WebSearchOptions.DefaultEntries()).ToArray(),
+        });
     }
 
     public string Id => "winbox.web";
     public string Name => "Web Search";
     public string Version => "0.1.0";
     public string HandlerId => Id;
+
+    /// <summary>Snapshot of configured entries (including disabled).</summary>
+    public WebSearchOptions Options
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return WebSearchOptionsStore.Clone(new WebSearchOptions { Entries = _entries });
+            }
+        }
+    }
+
+    public void ApplyOptions(WebSearchOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var normalized = WebSearchOptionsStore.Normalize(options);
+        lock (_gate)
+        {
+            _entries = normalized.Entries;
+        }
+    }
 
     public Task StartAsync(CancellationToken cancellationToken = default)
     {
@@ -43,9 +71,19 @@ public sealed class WebSearchPlugin : IWinBoxPlugin, IQueryHandler
             return false;
         }
 
-        foreach (var alias in _aliases)
+        IReadOnlyList<WebSearchEntry> entries;
+        lock (_gate)
         {
-            if (!TryConsumeAlias(rawInput, alias.Prefix, out var payload))
+            entries = _entries;
+        }
+
+        // Longest keyword first so "gg" wins over a hypothetical "g".
+        foreach (var (entry, keyword) in entries
+                     .Where(static e => e.Enabled)
+                     .SelectMany(static e => e.Keywords.Select(k => (Entry: e, Keyword: k)))
+                     .OrderByDescending(static pair => pair.Keyword.Length))
+        {
+            if (!TryConsumeKeyword(rawInput, keyword, out var payload))
             {
                 continue;
             }
@@ -53,9 +91,9 @@ public sealed class WebSearchPlugin : IWinBoxPlugin, IQueryHandler
             match = new QueryMatch(
                 HandlerId,
                 MatchPriority,
-                Prefix: alias.Prefix + " ",
+                Prefix: keyword + " ",
                 Payload: payload,
-                ModeLabel: alias.DisplayName,
+                ModeLabel: entry.DisplayName,
                 PreferredSurface: ResultSurface.Browser);
             return true;
         }
@@ -114,50 +152,63 @@ public sealed class WebSearchPlugin : IWinBoxPlugin, IQueryHandler
         return Task.CompletedTask;
     }
 
+    /// <summary>Builds a search URL from a template using <c>{query}</c> or <c>{0}</c>.</summary>
+    public static string FormatUrl(string urlTemplate, string query)
+    {
+        ArgumentNullException.ThrowIfNull(urlTemplate);
+        var encoded = Uri.EscapeDataString(query ?? string.Empty);
+        if (urlTemplate.Contains("{query}", StringComparison.OrdinalIgnoreCase))
+        {
+            return urlTemplate.Replace("{query}", encoded, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return string.Format(CultureInfo.InvariantCulture, urlTemplate, encoded);
+    }
+
     private string BuildUrl(QueryMatch match)
     {
-        var alias = _aliases.First(a =>
-            string.Equals(a.DisplayName, match.ModeLabel, StringComparison.OrdinalIgnoreCase)
-            || match.Prefix.StartsWith(a.Prefix, StringComparison.OrdinalIgnoreCase));
+        IReadOnlyList<WebSearchEntry> entries;
+        lock (_gate)
+        {
+            entries = _entries;
+        }
 
-        return string.Format(
-            System.Globalization.CultureInfo.InvariantCulture,
-            alias.UrlTemplate,
-            Uri.EscapeDataString(match.Payload));
+        var keyword = match.Prefix.TrimEnd();
+        var entry = entries.FirstOrDefault(e =>
+            e.Keywords.Any(k => string.Equals(k, keyword, StringComparison.OrdinalIgnoreCase)));
+        if (entry is null)
+        {
+            entry = entries.First(e =>
+                string.Equals(e.DisplayName, match.ModeLabel, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return FormatUrl(entry.UrlTemplate, match.Payload);
     }
 
-    private static bool TryConsumeAlias(string rawInput, string alias, out string payload)
+    private static bool TryConsumeKeyword(string rawInput, string keyword, out string payload)
     {
         payload = string.Empty;
-        if (rawInput.Length < alias.Length + 1)
+        if (rawInput.Length < keyword.Length + 1)
         {
             return false;
         }
 
-        if (!rawInput.StartsWith(alias, StringComparison.OrdinalIgnoreCase))
+        if (!rawInput.StartsWith(keyword, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        if (rawInput.Length == alias.Length)
+        if (rawInput.Length == keyword.Length)
         {
             return false;
         }
 
-        if (rawInput[alias.Length] != ' ')
+        if (rawInput[keyword.Length] != ' ')
         {
             return false;
         }
 
-        payload = rawInput[(alias.Length + 1)..];
+        payload = rawInput[(keyword.Length + 1)..];
         return true;
     }
-
-    private static IEnumerable<WebSearchAlias> DefaultAliases()
-    {
-        yield return new WebSearchAlias("google", "Google", "https://www.google.com/search?q={0}");
-        yield return new WebSearchAlias("gg", "Google", "https://www.google.com/search?q={0}");
-    }
 }
-
-public sealed record WebSearchAlias(string Prefix, string DisplayName, string UrlTemplate);

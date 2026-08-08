@@ -16,7 +16,7 @@ What users expect after Alfred / Raycast / Spotlight / Listary / PowerToys:
 | Selection chrome | Orientation while arrowing | Themed selection (not stock blue) |
 | Empty / no-result states | Trust | Empty/no-result text present |
 | Footer shortcut hints | Discoverability | Footer hints present |
-| Settings as preferences | Authority | Tabbed Index / General / Shortcuts + tokens |
+| Settings as preferences | Authority | Tabbed General / Index / Web / Appearance / Shortcuts + tokens |
 | Tray as brand mark | Always-visible identity | Multi-size `Assets/winbox.ico` |
 | Theme / position prefs | Personalization | Dark / light / system + layout knobs |
 

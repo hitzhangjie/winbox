@@ -5,17 +5,20 @@ using System.Windows.Media;
 using Microsoft.Win32;
 using WinBox.Search;
 using WinBox.Search.Index;
+using WinBox.Toolbox;
 
 namespace WinBox.Host.Ui;
 
 /// <summary>
-/// Host settings: General (startup), Index scope, Appearance, Shortcuts.
+/// Host settings: General, Index, Web searches, Appearance, Shortcuts.
 /// </summary>
 internal sealed class IndexSettingsWindow : Window
 {
     private readonly SearchPlugin _search;
     private readonly IndexOptionsStore _indexStore;
     private readonly UiOptionsStore _uiStore;
+    private readonly WebSearchPlugin _webPlugin;
+    private readonly WebSearchOptionsStore _webStore;
     private readonly LoginAutoStart _loginAutoStart;
     private readonly ListBox _rootsList;
     private readonly ListBox _excludeRootsList;
@@ -24,6 +27,8 @@ internal sealed class IndexSettingsWindow : Window
     private readonly TextBox _excludePatternsBox;
     private readonly CheckBox _recursiveBox;
     private readonly CheckBox _startWithWindowsBox;
+    private readonly ListBox _webList;
+    private readonly List<WebSearchEntry> _webDraft = [];
     private readonly ComboBox _themeBox;
     private readonly Slider _widthSlider;
     private readonly Slider _resultsHeightSlider;
@@ -46,13 +51,16 @@ internal sealed class IndexSettingsWindow : Window
         SearchPlugin search,
         IndexOptionsStore indexStore,
         UiOptionsStore uiStore,
+        WebSearchPlugin webPlugin,
+        WebSearchOptionsStore webStore,
         SettingsTab initialTab = SettingsTab.Index)
     {
         _search = search ?? throw new ArgumentNullException(nameof(search));
         _indexStore = indexStore ?? throw new ArgumentNullException(nameof(indexStore));
         _uiStore = uiStore ?? throw new ArgumentNullException(nameof(uiStore));
+        _webPlugin = webPlugin ?? throw new ArgumentNullException(nameof(webPlugin));
+        _webStore = webStore ?? throw new ArgumentNullException(nameof(webStore));
         _loginAutoStart = new LoginAutoStart();
-
         Title = "WinBox — Settings";
         Width = 660;
         Height = 720;
@@ -95,7 +103,7 @@ internal sealed class IndexSettingsWindow : Window
         DockPanel.SetDock(buttons, Dock.Right);
 
         _saveButton = CreateButton("Save & rebuild", primary: true, minWidth: 128);
-        _saveButton.Click += async (_, _) => await SaveAndRebuildAsync().ConfigureAwait(true);
+        _saveButton.Click += async (_, _) => await SaveCurrentTabAsync().ConfigureAwait(true);
 
         var closeButton = CreateButton("Close", primary: false, minWidth: 88);
         closeButton.IsCancel = true;
@@ -183,6 +191,20 @@ internal sealed class IndexSettingsWindow : Window
 
         _tabs.Items.Add(CreateTab("Index", WrapScroll(indexForm)));
 
+        var webForm = new StackPanel();
+        webForm.Children.Add(SectionLabel("Web searches", first: true));
+        webForm.Children.Add(Hint(
+            "Check a row to enable it. Type keyword + space in the launcher (e.g. gg winbox). Add/Edit opens a dialog."));
+        _webList = SettingsChrome.CreatePathList(emptyRows: 4);
+        // Rows are checkbox + label panels, not plain strings.
+        _webList.ItemTemplate = null;
+        _webList.DisplayMemberPath = null;
+        _webList.MouseDoubleClick += OnWebListDoubleClick;
+        webForm.Children.Add(SettingsChrome.WrapFlat(_webList));
+        webForm.Children.Add(WebListButtons());
+        webForm.Children.Add(Hint("Checkbox = enabled. Saved to " + _webStore.FilePath));
+        _tabs.Items.Add(CreateTab("Web", WrapScroll(webForm)));
+
         var appearance = new StackPanel();
         appearance.Children.Add(SectionLabel("Theme", first: true));
         appearance.Children.Add(Hint("Applies immediately to the launcher and this window."));
@@ -245,9 +267,7 @@ internal sealed class IndexSettingsWindow : Window
 
         _tabs.SelectionChanged += (_, _) =>
         {
-            _saveButton.Visibility = _tabs.SelectedIndex == (int)SettingsTab.Index
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+            RefreshSaveButtonForTab();
             if (_tabs.SelectedIndex >= 0 && _tabs.SelectedIndex <= (int)SettingsTab.Shortcuts)
             {
                 UpdateStatus(StatusForTab((SettingsTab)_tabs.SelectedIndex));
@@ -258,13 +278,22 @@ internal sealed class IndexSettingsWindow : Window
         Content = root;
 
         LoadFromOptions(_search.Options);
+        LoadWebFromOptions(_webPlugin.Options);
         LoadGeneralFromStore();
         LoadAppearanceFromStore();
         _tabs.SelectedIndex = (int)initialTab;
-        _saveButton.Visibility = initialTab == SettingsTab.Index ? Visibility.Visible : Visibility.Collapsed;
+        RefreshSaveButtonForTab();
         UpdateStatus(StatusForTab(initialTab));
         WinBoxTheme.Changed += OnHostThemeChanged;
         Closed += (_, _) => WinBoxTheme.Changed -= OnHostThemeChanged;
+    }
+
+    private void RefreshSaveButtonForTab()
+    {
+        var tab = (SettingsTab)_tabs.SelectedIndex;
+        var showSave = tab is SettingsTab.Index or SettingsTab.Web;
+        _saveButton.Visibility = showSave ? Visibility.Visible : Visibility.Collapsed;
+        _saveButton.Content = tab == SettingsTab.Index ? "Save & rebuild" : "Save";
     }
 
     private string StatusForTab(SettingsTab tab) => tab switch
@@ -272,6 +301,7 @@ internal sealed class IndexSettingsWindow : Window
         SettingsTab.General => _startWithWindowsBox.IsChecked == true
             ? "Will start with Windows sign-in."
             : "Won't start automatically.",
+        SettingsTab.Web => $"Web searches · {_webStore.FilePath}",
         SettingsTab.Appearance => $"Appearance · {_uiStore.FilePath}",
         SettingsTab.Shortcuts => "Keyboard & tray reference",
         _ => $"Index config: {_indexStore.FilePath}",
@@ -490,6 +520,7 @@ internal sealed class IndexSettingsWindow : Window
         SettingsChrome.StyleEmbeddedField(_excludePatternsBox);
         SettingsChrome.StyleEmbeddedList(_rootsList);
         SettingsChrome.StyleEmbeddedList(_excludeRootsList);
+        SettingsChrome.StyleEmbeddedList(_webList);
         SettingsChrome.StyleCombo(_themeBox);
         SettingsChrome.StyleCombo(_scrollModeBox);
         TintComboItems(_themeBox);
@@ -610,6 +641,272 @@ internal sealed class IndexSettingsWindow : Window
         SettingsChrome.FitPathList(list);
     }
 
+    private async Task SaveCurrentTabAsync()
+    {
+        if ((SettingsTab)_tabs.SelectedIndex == SettingsTab.Web)
+        {
+            SaveWebSearches();
+            return;
+        }
+
+        await SaveAndRebuildAsync().ConfigureAwait(true);
+    }
+
+    private void LoadWebFromOptions(WebSearchOptions options, int? preferSelectIndex = null)
+    {
+        _webDraft.Clear();
+        _webDraft.AddRange(WebSearchOptionsStore.Normalize(options).Entries);
+        var select = preferSelectIndex ?? (_webDraft.Count > 0 ? 0 : -1);
+        if (select >= _webDraft.Count)
+        {
+            select = _webDraft.Count - 1;
+        }
+
+        RefreshWebList(selectIndex: select);
+    }
+
+    private void RefreshWebList(int selectIndex)
+    {
+        _webList.Items.Clear();
+        for (var i = 0; i < _webDraft.Count; i++)
+        {
+            _webList.Items.Add(CreateWebRow(i));
+        }
+
+        SettingsChrome.FitPathList(_webList);
+        if (selectIndex >= 0 && selectIndex < _webList.Items.Count)
+        {
+            _webList.SelectedIndex = selectIndex;
+            _webList.ScrollIntoView(_webList.SelectedItem);
+        }
+    }
+
+    private FrameworkElement CreateWebRow(int index)
+    {
+        var entry = _webDraft[index];
+        var row = new DockPanel
+        {
+            Tag = index,
+            LastChildFill = true,
+        };
+
+        var check = new CheckBox
+        {
+            IsChecked = entry.Enabled,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 4, 4, 4),
+            FocusVisualStyle = null,
+            ToolTip = "Enabled",
+        };
+        DockPanel.SetDock(check, Dock.Left);
+        check.Checked += (_, _) => SetWebEntryEnabled(index, enabled: true);
+        check.Unchecked += (_, _) => SetWebEntryEnabled(index, enabled: false);
+
+        var label = new TextBlock
+        {
+            Text = $"{WebSearchOptionsStore.JoinKeywords(entry.Keywords)}  →  {entry.DisplayName}",
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = WinBoxTheme.TextPrimaryBrush,
+            FontFamily = WinBoxTheme.UiFont,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            TextWrapping = TextWrapping.NoWrap,
+            Padding = new Thickness(6, 6, 10, 6),
+            ToolTip = entry.UrlTemplate,
+            Tag = "body",
+        };
+
+        row.Children.Add(check);
+        row.Children.Add(label);
+        return row;
+    }
+
+    private void SetWebEntryEnabled(int index, bool enabled)
+    {
+        if (index < 0 || index >= _webDraft.Count)
+        {
+            return;
+        }
+
+        var current = _webDraft[index];
+        if (current.Enabled == enabled)
+        {
+            return;
+        }
+
+        _webDraft[index] = current with { Enabled = enabled };
+        _webList.SelectedIndex = index;
+        UpdateStatus(enabled
+            ? "Enabled — click Save to persist."
+            : "Disabled — click Save to persist.");
+    }
+
+    private void OnWebListDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject source
+            && FindAncestor<CheckBox>(source) is not null)
+        {
+            return;
+        }
+
+        EditSelectedWebEntry();
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? current)
+        where T : DependencyObject
+    {
+        while (current is not null)
+        {
+            if (current is T match)
+            {
+                return match;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
+    }
+
+    private void AddWebEntry()
+    {
+        var dialog = new WebSearchEntryDialog(this, existing: null);
+        if (dialog.ShowDialog() != true || dialog.Result is null)
+        {
+            return;
+        }
+
+        _webDraft.Add(dialog.Result);
+        RefreshWebList(selectIndex: _webDraft.Count - 1);
+        UpdateStatus("Entry added — click Save to persist.");
+    }
+
+    private void EditSelectedWebEntry()
+    {
+        if (_webList.SelectedIndex < 0 || _webList.SelectedIndex >= _webDraft.Count)
+        {
+            UpdateStatus("Select a web search to edit.");
+            return;
+        }
+
+        var index = _webList.SelectedIndex;
+        var dialog = new WebSearchEntryDialog(this, _webDraft[index]);
+        if (dialog.ShowDialog() != true || dialog.Result is null)
+        {
+            return;
+        }
+
+        // Keep the list checkbox as the source of truth for Enabled.
+        _webDraft[index] = dialog.Result with { Enabled = _webDraft[index].Enabled };
+        RefreshWebList(selectIndex: index);
+        UpdateStatus("Entry updated — click Save to persist.");
+    }
+
+    private void RemoveSelectedWebEntry()
+    {
+        if (_webList.SelectedIndex < 0 || _webList.SelectedIndex >= _webDraft.Count)
+        {
+            UpdateStatus("Select a web search to remove.");
+            return;
+        }
+
+        var index = _webList.SelectedIndex;
+        _webDraft.RemoveAt(index);
+        var next = Math.Min(index, _webDraft.Count - 1);
+        RefreshWebList(selectIndex: next);
+        UpdateStatus("Entry removed — click Save to persist.");
+    }
+
+    private void SaveWebSearches()
+    {
+        try
+        {
+            var selected = _webList.SelectedIndex;
+            var options = WebSearchOptionsStore.Normalize(new WebSearchOptions { Entries = _webDraft.ToArray() });
+            if (options.Entries.Count == 0)
+            {
+                UpdateStatus("Add at least one web search with a keyword and URL.");
+                return;
+            }
+
+            foreach (var entry in options.Entries)
+            {
+                if (!entry.UrlTemplate.Contains("{query}", StringComparison.OrdinalIgnoreCase)
+                    && !entry.UrlTemplate.Contains("{0}", StringComparison.Ordinal))
+                {
+                    var label = entry.Keywords.Count > 0
+                        ? WebSearchOptionsStore.JoinKeywords(entry.Keywords)
+                        : entry.DisplayName;
+                    UpdateStatus($"URL for '{label}' must include {{query}}.");
+                    return;
+                }
+            }
+
+            // Preserve which row stays selected after normalize (duplicate keywords may drop).
+            var preferKey = selected >= 0 && selected < _webDraft.Count
+                ? WebSearchOptionsStore.JoinKeywords(_webDraft[selected].Keywords)
+                : null;
+            _webStore.Save(options);
+            _webPlugin.ApplyOptions(options);
+
+            var preferIndex = selected;
+            if (preferKey is not null)
+            {
+                preferIndex = -1;
+                for (var i = 0; i < options.Entries.Count; i++)
+                {
+                    if (string.Equals(
+                            WebSearchOptionsStore.JoinKeywords(options.Entries[i].Keywords),
+                            preferKey,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        preferIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            if (preferIndex < 0 || preferIndex >= options.Entries.Count)
+            {
+                preferIndex = options.Entries.Count > 0
+                    ? Math.Min(Math.Max(selected, 0), options.Entries.Count - 1)
+                    : -1;
+            }
+
+            LoadWebFromOptions(options, preferSelectIndex: preferIndex);
+            UpdateStatus($"Saved {options.Entries.Count} web search(es).");
+        }
+        catch (Exception ex)
+        {
+            UpdateStatus($"Save failed: {ex.Message}");
+            MessageBox.Show(this, ex.Message, "WinBox settings", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private StackPanel WebListButtons()
+    {
+        var row = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 10, 0, 0),
+        };
+
+        var addButton = CreateButton("Add…", primary: false);
+        addButton.Click += (_, _) => AddWebEntry();
+
+        var editButton = CreateButton("Edit…", primary: false);
+        editButton.Margin = new Thickness(8, 0, 0, 0);
+        editButton.Click += (_, _) => EditSelectedWebEntry();
+
+        var removeButton = CreateButton("Remove", primary: false);
+        removeButton.Margin = new Thickness(8, 0, 0, 0);
+        removeButton.Click += (_, _) => RemoveSelectedWebEntry();
+
+        row.Children.Add(addButton);
+        row.Children.Add(editButton);
+        row.Children.Add(removeButton);
+        return row;
+    }
+
     private async Task SaveAndRebuildAsync()
     {
         try
@@ -709,16 +1006,20 @@ internal sealed class IndexSettingsWindow : Window
         Tag = "hint",
     };
 
-    private static StackPanel PathListButtons(Action add, Action remove)
+    private static StackPanel PathListButtons(
+        Action add,
+        Action remove,
+        string addLabel = "Add folder…",
+        string removeLabel = "Remove")
     {
         var row = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Margin = new Thickness(0, 10, 0, 0),
         };
-        var addButton = CreateButton("Add folder…", primary: false);
+        var addButton = CreateButton(addLabel, primary: false);
         addButton.Click += (_, _) => add();
-        var removeButton = CreateButton("Remove", primary: false);
+        var removeButton = CreateButton(removeLabel, primary: false);
         removeButton.Margin = new Thickness(8, 0, 0, 0);
         removeButton.Click += (_, _) => remove();
         row.Children.Add(addButton);

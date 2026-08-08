@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\WinBox.Abstractions\WinBox.Abstractions.csproj" />
+    <ProjectReference Include="..\..\plugins\search\WinBox.Search\WinBox.Search.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Avoid launching the native apphost .exe (often blocked as Access Denied by AV / policy). -->
+    <UseAppHost>false</UseAppHost>
+  </PropertyGroup>
+
+</Project>

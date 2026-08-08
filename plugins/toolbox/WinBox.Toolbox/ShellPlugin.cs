@@ -55,7 +55,7 @@ public sealed class ShellPlugin : IWinBoxPlugin, IQueryHandler
         {
             return Task.FromResult(new QueryResponse(
             [
-                new QueryResultItem("shell-hint", "Type a command to run in cmd.exe", Action: ResultActionKind.None),
+                new QueryResultItem("shell-hint", "Type a command to run in cmd.exe", Action: ResultActionKind.None, IconKey: ResultIconKeys.Shell),
             ]));
         }
 
@@ -64,7 +64,8 @@ public sealed class ShellPlugin : IWinBoxPlugin, IQueryHandler
             Title: match.Payload,
             Subtitle: "Run in cmd.exe",
             Payload: match.Payload,
-            Action: ResultActionKind.RunCommand);
+            Action: ResultActionKind.RunCommand,
+            IconKey: ResultIconKeys.Shell);
         return Task.FromResult(new QueryResponse([item]));
     }
 

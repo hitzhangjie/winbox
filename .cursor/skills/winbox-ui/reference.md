@@ -11,7 +11,7 @@ What users expect after Alfred / Raycast / Spotlight / Listary / PowerToys:
 |-------------|----------------|---------------------------|
 | Fixed, memorable summon position | Muscle memory | Draggable + persisted (`ui-options.json`) |
 | Soft material / rounded chrome | Feels “OS integrated” | Radius + shadow; settings Mica/round when available |
-| Two-line results + icon | Scanability | `ResultRowView` title/subtitle + action glyph |
+| Two-line results + icon | Scanability | `ResultRowView` title/subtitle + **shell file icons** (Explorer association); MDL2 glyph fallback for toolbox |
 | Vertical scroll only | Long paths must not shove layout | Horizontal scroll disabled; ellipsis + tooltip |
 | Selection chrome | Orientation while arrowing | Themed selection (not stock blue) |
 | Empty / no-result states | Trust | Empty/no-result text present |
@@ -88,14 +88,14 @@ Light / system themes swap colors only — do not fork layouts.
 Current:
 
 ```csharp
-QueryResultItem(Id, Title, Subtitle?, Payload?, Action)
+QueryResultItem(Id, Title, Subtitle?, Payload?, Action, IconKey?)
 ```
 
 Additive fields to consider (only when a real UI needs them):
 
 | Field | Purpose |
 |-------|---------|
-| `IconKey` or `Glyph` | Host maps to frozen icon / Segoe Fluent glyph |
+| ~~`IconKey` or `Glyph`~~ | ~~Host maps to frozen icon / Segoe Fluent glyph~~ — shipped (`ResultIconKeys` + Host glyph map) |
 | `Accessory` | Right-aligned hint (`Enter`, score, type) |
 | `Group` | Section headers (Apps / Files) later |
 
@@ -156,13 +156,13 @@ Ordered for friendliness vs effort (re-audit after each slice):
 1. ~~**Theme craft (light/dark)** (P1)~~ — refined tokens, hover, shadow, empty/idle copy, settings rebind
 2. ~~**Settings panel craft** (P1)~~ — path list cards, underline tabs, padding rhythm, card/footer shadows
 2b. ~~**Settings density + tray chrome** (P1)~~ — content-sized lists, custom combo/slider, window icon, themed tray menu + mark
-2c. ~~**Tray menu + settings flatten** (P1)~~ — rounded/centered tray menu, circular tray mark, flat settings (no list cards), filled slider
+2c. ~~**Tray menu + settings flatten** (P1)~~ — rounded/centered tray menu, 2×2 window tray mark, flat settings (no list cards), filled slider
 3. **Result match highlighting** (P2) — bold/accent the matched substring in title
 4. **Row accessory hints** (P2) — right-aligned action/key hint without widening window
 5. **Empty-query recents** (P2) — optional recent/actions list beyond idle hint
 6. **Dynamic footer** (P2) — ~~basic context footer done~~; richer per-action accessories still open
 7. **Contrast / focus ring pass** (P2) — deepen keyboard focus visuals beyond caret accent
-8. **Icon fidelity** (P2) — richer file/app glyphs via additive `IconKey` when needed
+8. ~~**Icon fidelity** (P2)~~ — Explorer shell icons for path results; `IconKey` + MDL2 glyph fallback for toolbox
 9. **Reduced motion** (P3) — skip fade when OS requests reduced motion
 
 Stage-1 checklist (historical, done):

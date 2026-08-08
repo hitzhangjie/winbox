@@ -76,7 +76,8 @@ public sealed class WebSearchPlugin : IWinBoxPlugin, IQueryHandler
                     "web-hint",
                     $"Search {match.ModeLabel}",
                     Subtitle: "Keep typing your query",
-                    Action: ResultActionKind.None),
+                    Action: ResultActionKind.None,
+                    IconKey: ResultIconKeys.Web),
             ], ResultSurface.Browser));
         }
 
@@ -86,7 +87,8 @@ public sealed class WebSearchPlugin : IWinBoxPlugin, IQueryHandler
             Title: match.Payload,
             Subtitle: $"Open in {match.ModeLabel}",
             Payload: url,
-            Action: ResultActionKind.OpenUrl);
+            Action: ResultActionKind.OpenUrl,
+            IconKey: ResultIconKeys.Web);
         return Task.FromResult(new QueryResponse([item], ResultSurface.Browser));
     }
 

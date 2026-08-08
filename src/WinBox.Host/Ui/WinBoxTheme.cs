@@ -39,6 +39,7 @@ public static class WinBoxTheme
     public const double FontSubtitle = 12;
     public const double FontFooter = 11;
     public const double FontGlyph = 14;
+    public const double ResultIconSize = 16;
     public const int MotionMs = 100;
 
     public static readonly FontFamily UiFont = new("Segoe UI Variable Text, Segoe UI");
@@ -96,6 +97,55 @@ public static class WinBoxTheme
         Abstractions.ResultActionKind.OpenPath => "\uE8A5",
         _ => "\uE721",
     };
+
+    /// <summary>
+    /// Maps plugin <see cref="Abstractions.ResultIconKeys"/> to Segoe MDL2 glyphs.
+    /// Unknown / empty keys fall back to the action glyph.
+    /// </summary>
+    public static string GlyphForResult(string? iconKey, Abstractions.ResultActionKind action)
+    {
+        if (!string.IsNullOrWhiteSpace(iconKey))
+        {
+            var glyph = GlyphForIconKey(iconKey);
+            if (glyph is not null)
+            {
+                return glyph;
+            }
+        }
+
+        return GlyphForAction(action);
+    }
+
+    public static string? GlyphForIconKey(string? iconKey)
+    {
+        if (string.IsNullOrWhiteSpace(iconKey))
+        {
+            return null;
+        }
+
+        return iconKey.Trim().ToLowerInvariant() switch
+        {
+            Abstractions.ResultIconKeys.Folder => "\uE8B7",
+            Abstractions.ResultIconKeys.Document => "\uE8A5",
+            Abstractions.ResultIconKeys.Markdown => "\uE70F",
+            Abstractions.ResultIconKeys.Code => "\uE943",
+            Abstractions.ResultIconKeys.Pdf => "\uE7C3",
+            Abstractions.ResultIconKeys.Spreadsheet => "\uE9F9",
+            Abstractions.ResultIconKeys.Presentation => "\uE7F4",
+            Abstractions.ResultIconKeys.Image => "\uE8B9",
+            Abstractions.ResultIconKeys.Audio => "\uE8D6",
+            Abstractions.ResultIconKeys.Video => "\uE714",
+            Abstractions.ResultIconKeys.Archive => "\uE88C",
+            Abstractions.ResultIconKeys.Executable => "\uE756",
+            Abstractions.ResultIconKeys.Calculator => "\uE8EF",
+            Abstractions.ResultIconKeys.Shell => "\uE756",
+            Abstractions.ResultIconKeys.Web => "\uE774",
+            Abstractions.ResultIconKeys.Ai => "\uE99A",
+            Abstractions.ResultIconKeys.Search => "\uE721",
+            Abstractions.ResultIconKeys.File => "\uE8A5",
+            _ => null,
+        };
+    }
 
     public static ThemeColors Resolve(UiThemeKind kind)
     {

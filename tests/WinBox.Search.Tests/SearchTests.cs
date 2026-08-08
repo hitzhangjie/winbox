@@ -396,6 +396,76 @@ public sealed class SearchPluginTests
         Assert.Empty(activation.Opened);
         Assert.Empty(activation.Revealed);
     }
+
+    [Fact]
+    public async Task QueryAsync_SetsDocumentTypeIconKeys()
+    {
+        using var fixture = TempIndexFixture.Create();
+        fixture.WriteFile("notes.md", "md");
+        fixture.WriteFile("main.go", "package main");
+        fixture.WriteFile("shot.png", "img");
+        fixture.WriteFile("report.pdf", "%PDF");
+
+        var plugin = new SearchPlugin(new IndexOptions
+        {
+            Roots = [fixture.Root],
+            ExcludePathPatterns = [],
+            Recursive = true,
+        });
+        await plugin.StartAsync();
+        await plugin.RebuildIndexAsync();
+
+        var response = await plugin.QueryAsync(new QueryMatch("winbox.search", 0, "", "notes"));
+        var md = Assert.Single(response.Items, i => i.Title.Equals("notes.md", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(ResultIconKeys.Markdown, md.IconKey);
+
+        response = await plugin.QueryAsync(new QueryMatch("winbox.search", 0, "", "main"));
+        var go = Assert.Single(response.Items, i => i.Title.Equals("main.go", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(ResultIconKeys.Code, go.IconKey);
+
+        response = await plugin.QueryAsync(new QueryMatch("winbox.search", 0, "", "shot"));
+        var png = Assert.Single(response.Items, i => i.Title.Equals("shot.png", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(ResultIconKeys.Image, png.IconKey);
+
+        response = await plugin.QueryAsync(new QueryMatch("winbox.search", 0, "", "report"));
+        var pdf = Assert.Single(response.Items, i => i.Title.Equals("report.pdf", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(ResultIconKeys.Pdf, pdf.IconKey);
+    }
+}
+
+public sealed class FileResultIconTests
+{
+    [Theory]
+    [InlineData("readme.md", ResultIconKeys.Markdown)]
+    [InlineData("Main.CS", ResultIconKeys.Code)]
+    [InlineData("data.xlsx", ResultIconKeys.Spreadsheet)]
+    [InlineData("deck.pptx", ResultIconKeys.Presentation)]
+    [InlineData("photo.JPEG", ResultIconKeys.Image)]
+    [InlineData("song.mp3", ResultIconKeys.Audio)]
+    [InlineData("clip.mp4", ResultIconKeys.Video)]
+    [InlineData("pack.zip", ResultIconKeys.Archive)]
+    [InlineData("app.exe", ResultIconKeys.Executable)]
+    [InlineData("notes.txt", ResultIconKeys.Document)]
+    [InlineData("paper.pdf", ResultIconKeys.Pdf)]
+    [InlineData("noext", ResultIconKeys.File)]
+    public void FromPath_MapsKnownExtensions(string fileName, string expectedKey)
+    {
+        Assert.Equal(expectedKey, FileResultIcon.FromPath(@"D:\docs\" + fileName));
+    }
+
+    [Fact]
+    public void FromExtension_StripsDotAndIgnoresCase()
+    {
+        Assert.Equal(ResultIconKeys.Code, FileResultIcon.FromExtension(".GO"));
+        Assert.Equal(ResultIconKeys.Markdown, FileResultIcon.FromExtension("MD"));
+    }
+
+    [Fact]
+    public void FromPath_Empty_ReturnsFile()
+    {
+        Assert.Equal(ResultIconKeys.File, FileResultIcon.FromPath(null));
+        Assert.Equal(ResultIconKeys.File, FileResultIcon.FromPath("   "));
+    }
 }
 
 internal sealed class RecordingPathActivation : IPathActivation

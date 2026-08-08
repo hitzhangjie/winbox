@@ -71,7 +71,8 @@ public sealed class CalculatorPlugin : IWinBoxPlugin, IQueryHandler
             Title: text,
             Subtitle: match.Payload,
             Payload: text,
-            Action: ResultActionKind.CopyText);
+            Action: ResultActionKind.CopyText,
+            IconKey: ResultIconKeys.Calculator);
         return Task.FromResult(new QueryResponse([item]));
     }
 

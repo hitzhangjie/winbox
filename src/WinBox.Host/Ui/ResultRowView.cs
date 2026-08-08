@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
 using WinBox.Abstractions;
+using IOPath = System.IO.Path;
 
 namespace WinBox.Host.Ui;
 
@@ -17,24 +18,69 @@ public sealed class ResultRowModel
 
     public ResultActionKind Action { get; init; }
 
-    public string Glyph => WinBoxTheme.GlyphForAction(Action);
+    public string? IconKey { get; init; }
+
+    /// <summary>Explorer-style shell icon when the payload is a file path; null uses <see cref="Glyph"/>.</summary>
+    public ImageSource? IconImage { get; init; }
+
+    public string Glyph => WinBoxTheme.GlyphForResult(IconKey, Action);
 
     public static ResultRowModel FromResult(QueryResultItem item)
     {
         ArgumentNullException.ThrowIfNull(item);
         var subtitle = string.IsNullOrWhiteSpace(item.Subtitle) ? null : item.Subtitle;
         var tip = subtitle ?? item.Title;
+        var path = ResolvePathHint(item);
         return new ResultRowModel
         {
             Title = item.Title,
             Subtitle = subtitle,
             ToolTipText = tip,
             Action = item.Action,
+            IconKey = string.IsNullOrWhiteSpace(item.IconKey) ? null : item.IconKey,
+            IconImage = path is null ? null : ShellFileIcons.GetForPath(path),
         };
+    }
+
+    private static string? ResolvePathHint(QueryResultItem item)
+    {
+        if (item.Action is not (ResultActionKind.OpenPath or ResultActionKind.OpenContainingFolder))
+        {
+            return null;
+        }
+
+        if (IsRootedPath(item.Payload))
+        {
+            return item.Payload;
+        }
+
+        if (IsRootedPath(item.Id))
+        {
+            return item.Id;
+        }
+
+        return null;
+    }
+
+    private static bool IsRootedPath(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        try
+        {
+            return IOPath.IsPathRooted(value);
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
     }
 }
 
-/// <summary>Two-line result row: glyph + title + truncated subtitle.</summary>
+/// <summary>Two-line result row: shell icon or glyph + title + truncated subtitle.</summary>
 public sealed class ResultRowView : Grid
 {
     public static readonly DependencyProperty TitleProperty = DependencyProperty.Register(
@@ -55,6 +101,13 @@ public sealed class ResultRowView : Grid
         typeof(ResultRowView),
         new PropertyMetadata(WinBoxTheme.GlyphForAction(ResultActionKind.None), OnGlyphChanged));
 
+    public static readonly DependencyProperty IconImageProperty = DependencyProperty.Register(
+        nameof(IconImage),
+        typeof(ImageSource),
+        typeof(ResultRowView),
+        new PropertyMetadata(null, OnIconImageChanged));
+
+    private readonly Image _icon;
     private readonly TextBlock _glyph;
     private readonly TextBlock _title;
     private readonly TextBlock _subtitle;
@@ -64,6 +117,21 @@ public sealed class ResultRowView : Grid
         MinHeight = WinBoxTheme.ResultRowMinHeight;
         ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
         ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        _icon = new Image
+        {
+            Width = WinBoxTheme.ResultIconSize,
+            Height = WinBoxTheme.ResultIconSize,
+            Stretch = Stretch.Uniform,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0),
+            Visibility = Visibility.Collapsed,
+            SnapsToDevicePixels = true,
+        };
+        RenderOptions.SetBitmapScalingMode(_icon, BitmapScalingMode.HighQuality);
+        SetColumn(_icon, 0);
+        Children.Add(_icon);
 
         _glyph = new TextBlock
         {
@@ -102,6 +170,7 @@ public sealed class ResultRowView : Grid
         SetColumn(textStack, 1);
         Children.Add(textStack);
         ApplyThemeBrushes();
+        SyncIconPresentation();
     }
 
     public void ApplyThemeBrushes()
@@ -131,6 +200,12 @@ public sealed class ResultRowView : Grid
         set => SetValue(GlyphProperty, value);
     }
 
+    public ImageSource? IconImage
+    {
+        get => (ImageSource?)GetValue(IconImageProperty);
+        set => SetValue(IconImageProperty, value);
+    }
+
     public static DataTemplate CreateListTemplate()
     {
         var template = new DataTemplate(typeof(ResultRowModel));
@@ -138,9 +213,26 @@ public sealed class ResultRowView : Grid
         factory.SetBinding(TitleProperty, new Binding(nameof(ResultRowModel.Title)));
         factory.SetBinding(SubtitleProperty, new Binding(nameof(ResultRowModel.Subtitle)));
         factory.SetBinding(GlyphProperty, new Binding(nameof(ResultRowModel.Glyph)));
+        factory.SetBinding(IconImageProperty, new Binding(nameof(ResultRowModel.IconImage)));
         factory.SetBinding(ToolTipProperty, new Binding(nameof(ResultRowModel.ToolTipText)));
         template.VisualTree = factory;
         return template;
+    }
+
+    private void SyncIconPresentation()
+    {
+        if (IconImage is not null)
+        {
+            _icon.Source = IconImage;
+            _icon.Visibility = Visibility.Visible;
+            _glyph.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            _icon.Source = null;
+            _icon.Visibility = Visibility.Collapsed;
+            _glyph.Visibility = Visibility.Visible;
+        }
     }
 
     private static void OnTitleChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -176,6 +268,14 @@ public sealed class ResultRowView : Grid
         if (d is ResultRowView row)
         {
             row._glyph.Text = e.NewValue as string ?? string.Empty;
+        }
+    }
+
+    private static void OnIconImageChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is ResultRowView row)
+        {
+            row.SyncIconPresentation();
         }
     }
 }

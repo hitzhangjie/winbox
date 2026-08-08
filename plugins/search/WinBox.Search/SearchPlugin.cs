@@ -138,7 +138,8 @@ public sealed class SearchPlugin : IWinBoxPlugin, ISearchService, IQueryHandler
                 Title: h.Name,
                 Subtitle: h.Path,
                 Payload: h.Path,
-                Action: ResultActionKind.OpenPath))
+                Action: ResultActionKind.OpenPath,
+                IconKey: FileResultIcon.FromPath(h.Path)))
             .ToList();
         return new QueryResponse(items);
     }

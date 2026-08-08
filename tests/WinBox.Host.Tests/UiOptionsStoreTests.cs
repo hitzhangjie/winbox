@@ -96,4 +96,110 @@ public sealed class ResultRowModelTests
         Assert.Null(row.Subtitle);
         Assert.Equal("Only title", row.ToolTipText);
     }
+
+    [Fact]
+    public void FromResult_UsesIconKeyGlyphOverActionFallback()
+    {
+        var item = new Abstractions.QueryResultItem(
+            "id",
+            "shot.png",
+            @"D:\pics\shot.png",
+            @"D:\pics\shot.png",
+            Abstractions.ResultActionKind.OpenPath,
+            IconKey: Abstractions.ResultIconKeys.Image);
+
+        var row = ResultRowModel.FromResult(item);
+
+        Assert.Equal(Abstractions.ResultIconKeys.Image, row.IconKey);
+        Assert.Equal(WinBoxTheme.GlyphForIconKey(Abstractions.ResultIconKeys.Image), row.Glyph);
+        Assert.NotEqual(WinBoxTheme.GlyphForAction(Abstractions.ResultActionKind.OpenPath), row.Glyph);
+    }
+
+    [Fact]
+    public void FromResult_FallsBackToActionGlyphWhenIconKeyMissing()
+    {
+        var item = new Abstractions.QueryResultItem(
+            "id",
+            "title",
+            Action: Abstractions.ResultActionKind.CopyText);
+
+        var row = ResultRowModel.FromResult(item);
+
+        Assert.Null(row.IconKey);
+        Assert.Null(row.IconImage);
+        Assert.Equal(WinBoxTheme.GlyphForAction(Abstractions.ResultActionKind.CopyText), row.Glyph);
+    }
+
+    [Fact]
+    public void FromResult_PathItem_ResolvesShellIconImage()
+    {
+        var item = new Abstractions.QueryResultItem(
+            "id",
+            "notes.md",
+            @"D:\docs\notes.md",
+            @"D:\docs\notes.md",
+            Abstractions.ResultActionKind.OpenPath,
+            IconKey: Abstractions.ResultIconKeys.Markdown);
+
+        var row = ResultRowModel.FromResult(item);
+
+        Assert.NotNull(row.IconImage);
+        Assert.True(row.IconImage.CanFreeze);
+    }
+
+    [Fact]
+    public void FromResult_NonPathAction_SkipsShellIcon()
+    {
+        var item = new Abstractions.QueryResultItem(
+            "calc",
+            "42",
+            Subtitle: "6*7",
+            Payload: "42",
+            Action: Abstractions.ResultActionKind.CopyText,
+            IconKey: Abstractions.ResultIconKeys.Calculator);
+
+        var row = ResultRowModel.FromResult(item);
+
+        Assert.Null(row.IconImage);
+        Assert.Equal(WinBoxTheme.GlyphForIconKey(Abstractions.ResultIconKeys.Calculator), row.Glyph);
+    }
+}
+
+public sealed class ShellFileIconsTests
+{
+    [Fact]
+    public void GetForPath_ReturnsFrozenIconForKnownExtension()
+    {
+        ShellFileIcons.ClearCache();
+
+        var pdf = ShellFileIcons.GetForPath(@"C:\temp\report.pdf");
+        var png = ShellFileIcons.GetForPath(@"D:\shots\a.png");
+
+        Assert.NotNull(pdf);
+        Assert.NotNull(png);
+        Assert.True(pdf.IsFrozen);
+        Assert.True(png.IsFrozen);
+        Assert.NotSame(pdf, png);
+    }
+
+    [Fact]
+    public void GetForPath_CachesByExtension()
+    {
+        ShellFileIcons.ClearCache();
+
+        var first = ShellFileIcons.GetForPath(@"C:\a\one.md");
+        var second = ShellFileIcons.GetForPath(@"D:\b\two.md");
+
+        Assert.NotNull(first);
+        Assert.Same(first, second);
+    }
+
+    [Fact]
+    public void GetForPath_RejectsNonRootedAndBlank()
+    {
+        Assert.Null(ShellFileIcons.GetForPath(null));
+        Assert.Null(ShellFileIcons.GetForPath("   "));
+        Assert.Null(ShellFileIcons.GetForPath("readme.md"));
+        Assert.Null(ShellFileIcons.GetForPath("https://example.com/a.pdf"));
+    }
 }

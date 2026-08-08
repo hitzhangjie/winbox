@@ -65,7 +65,8 @@ public sealed class AiPlugin : IWinBoxPlugin, IQueryHandler
                     "ai-hint",
                     "Ask AI",
                     Subtitle: $"{Model} via {BaseUrl}",
-                    Action: ResultActionKind.None),
+                    Action: ResultActionKind.None,
+                    IconKey: ResultIconKeys.Ai),
             ]));
         }
 
@@ -75,7 +76,8 @@ public sealed class AiPlugin : IWinBoxPlugin, IQueryHandler
             Title: match.Payload,
             Subtitle: $"AI skeleton — will stream from {Model}",
             Payload: match.Payload,
-            Action: ResultActionKind.None);
+            Action: ResultActionKind.None,
+            IconKey: ResultIconKeys.Ai);
         return Task.FromResult(new QueryResponse([item]));
     }
 

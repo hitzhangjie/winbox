@@ -106,6 +106,23 @@ public sealed class UiThemeTests
         Assert.True(WinBoxTheme.SettingsCardRadius >= WinBoxTheme.ControlRadius);
     }
 
+    [Fact]
+    public void GlyphForResult_PrefersKnownIconKey()
+    {
+        var image = WinBoxTheme.GlyphForResult(ResultIconKeys.Image, ResultActionKind.OpenPath);
+        var fallback = WinBoxTheme.GlyphForAction(ResultActionKind.OpenPath);
+
+        Assert.Equal(WinBoxTheme.GlyphForIconKey(ResultIconKeys.Image), image);
+        Assert.NotEqual(fallback, image);
+    }
+
+    [Fact]
+    public void GlyphForResult_FallsBackWhenIconKeyUnknown()
+    {
+        var glyph = WinBoxTheme.GlyphForResult("not-a-real-key", ResultActionKind.RunCommand);
+        Assert.Equal(WinBoxTheme.GlyphForAction(ResultActionKind.RunCommand), glyph);
+    }
+
     private static double Luma(System.Windows.Media.Color c) =>
         (0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B) / 255.0;
 }

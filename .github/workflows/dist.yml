@@ -1,0 +1,105 @@
+name: Dist
+
+on:
+  push:
+    tags:
+      - "v*"
+  release:
+    types: [published]
+
+concurrency:
+  group: dist-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify (Release build & test)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore / build / test
+        shell: pwsh
+        run: |
+          dotnet restore WinBox.sln
+          dotnet build WinBox.sln -c Release --no-restore
+          dotnet test WinBox.sln -c Release --no-build --verbosity minimal
+
+  package:
+    name: Package (${{ matrix.platform }})
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Supported product target today: Windows 11 amd64.
+          # Matrix is ready for future RIDs (e.g. win-arm64) without rewriting the workflow.
+          - os: windows-latest
+            rid: win-x64
+            platform: windows11-amd64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          $ref = "${{ github.ref_name }}"
+          if ($ref -match '^v(.+)$') { $ver = $Matches[1] } else { $ver = $ref }
+          "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Package version: $ver"
+
+      - name: Dist
+        shell: pwsh
+        run: |
+          ./scripts/dist.ps1 `
+            -Configuration Release `
+            -Runtime "${{ matrix.rid }}" `
+            -Version "${{ steps.version.outputs.version }}"
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: winbox-${{ steps.version.outputs.version }}-${{ matrix.platform }}
+          path: artifacts/dist/*.zip
+          if-no-files-found: error
+
+  upload-release-asset:
+    name: Attach package to GitHub Release
+    if: github.event_name == 'release'
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-out
+          pattern: winbox-*
+          merge-multiple: true
+
+      - name: Upload assets to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          ls -la dist-out
+          gh release upload "$TAG" dist-out/*.zip --clobber

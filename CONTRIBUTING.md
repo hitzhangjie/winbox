@@ -16,6 +16,7 @@ make build     # 编译
 make test      # 跑测试（改代码后建议必跑）
 make run       # 启动宿主：Shift+Alt+U 唤起输入框，Esc 关闭，Ctrl+C 退出
 make ci        # 对齐 GitHub CI：Release 编译 + 测试
+make dist      # 打 Windows 11 amd64 自包含 zip（artifacts/dist/）
 ```
 
 没有 `make` 时，等价命令见根目录 [README.md](README.md) 的「本地开发」一节。
@@ -101,8 +102,11 @@ WinBox.Host ──────────► WinBox.Abstractions
 | 内存索引 + 子串搜索（默认输入） | OpenPath 等激活动作 |
 | 索引设置面板（托盘 → Index settings）+ JSON 配置 | Watcher / USN 增量、全文/标题可选索引 |
 | 全局热键 + 托盘 + 唤起层 + QueryRouter | 可配置热键；launcher UI 见 `winbox-ui`（基础已落地；craft 审计见 `craft-audit.md`） |
+| File Search（类型/mtime 过滤、展开、shell 图标） | 预览面板、更多结果动作 |
 | Web 前缀可配置（默认 google/gg、so、yt、x；一行多 keyword）+ Settings → Web | AI 设置面板、LLM 流式 |
+| 开机自启（Settings → General） | Authenticode 签名、winget |
 | 单元测试 + Makefile + GitHub Actions CI | 进程隔离、按需安装插件包 |
+| `make dist` + Dist 工作流（tag 验证 / Release 挂 zip） | 多架构安装包、MSI/Inno 安装向导 |
 
 改代码前先对一下表，避免在「尚未存在的能力」上空转。
 

@@ -29,7 +29,7 @@ Onboarding:
 
 1. Require **.NET 8 SDK** (see `global.json`). Runtimes alone are not enough.
 2. Prefer **Makefile** targets; if `make` missing, use README `dotnet` commands.
-3. Host may use `UseAppHost=false` so `dotnet run` avoids blocked native `.exe` on some Windows policies. Prefer `make run` / `dotnet run`, not double-clicking `WinBox.Host.exe` in dev.
+3. Host may use `UseAppHost=false` so `dotnet run` avoids blocked native `.exe` on some Windows policies. Prefer `make run` / `dotnet run`, not double-clicking `WinBox.Host.exe` in dev. Distribution packages from `make dist` force `UseAppHost=true`.
 
 ## Orientation (60-second model)
 

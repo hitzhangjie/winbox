@@ -16,7 +16,9 @@ Tests are the quality backstop so contributors need not be language experts: **i
 |------|---------|------|
 | Local fast | `make test` | After every behavior change |
 | Local CI-parity | `make ci` | Before PR / release claims |
+| Local package | `make dist` | When changing publish/packaging scripts or Host csproj publish-related props |
 | Remote | GitHub Actions `CI` workflow | On push/PR |
+| Remote package | GitHub Actions `Dist` workflow | On `v*` tag / Release published |
 
 Never mark work complete if `make test` fails.
 

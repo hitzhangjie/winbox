@@ -57,19 +57,22 @@ Feedback labels:
 
 Do not demand C# idiom perfection if behavior + tests + boundaries are sound.
 
-## Release & distribution (forward-looking)
+## Release & distribution
 
-Even before packaging exists, keep changes releasable:
+Supported product target today: **Windows 11 amd64** (`win-x64` self-contained zip).
 
 | Track | Expectation |
 |-------|-------------|
-| Version story | Plugin `Version` + eventual Host version stay coherent |
-| Artifacts | Prefer `dotnet publish` / CI artifacts over checking bins into git |
-| Channels | Design for: CI build → GitHub Release → (later) installer/winget |
-| Signing | Dev may use `UseAppHost=false`; release builds should plan Authenticode when distributing `.exe` |
-| Notes | Every release lists user-visible search/host changes + upgrade steps |
+| Local package | `make dist` (optional `VERSION=x.y.z`) → `artifacts/dist/WinBox-<ver>-win-x64.zip` |
+| Script | `scripts/dist.ps1` — `dotnet publish` self-contained + zip; forces `UseAppHost=true` |
+| Version | Tag `v*` (strip leading `v`) > `-Version` / `WINBOX_VERSION` > `Directory.Build.props` `<Version>` |
+| Tag push | `.github/workflows/dist.yml` verifies (`build`+`test`) then packages; uploads workflow artifact |
+| GitHub Release | Same workflow on `release: published` re-packages and **uploads zip as release assets** |
+| Channels | CI → tag dist check → GitHub Release zip → (later) winget / signed installer |
+| Signing | Dev may use `UseAppHost=false`; release zip ships native `WinBox.Host.exe` (Authenticode still TODO) |
+| Notes | Every release lists user-visible search/host changes + upgrade steps (unzip → run exe) |
 
-When adding release automation later: put workflows under `.github/workflows/`, keep `make ci` as the authenticity gate before publish jobs.
+`make ci` remains the authenticity gate inside Dist before publish. Do not commit `artifacts/` or bins.
 
 ## Merge rules of thumb
 

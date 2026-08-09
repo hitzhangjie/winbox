@@ -18,6 +18,8 @@
     <Nullable>enable</Nullable>
     <!-- Avoid launching the native apphost .exe (often blocked as Access Denied by AV / policy). -->
     <UseAppHost>false</UseAppHost>
+    <!-- Win32 PE icon for Explorer / Start / Apps list when UseAppHost=true (make dist). -->
+    <ApplicationIcon>Assets\winbox.ico</ApplicationIcon>
   </PropertyGroup>
 
   <!-- Keep WinForms out of global usings so WPF TextBox/ListBox/Application stay unambiguous. -->

@@ -40,7 +40,8 @@ DisableProgramGroupPage=yes
 OutputDir={#OutputDir}
 OutputBaseFilename=WinBox-{#MyAppVersion}-{#MyAppRuntime}-setup
 SetupIconFile={#SetupIcon}
-UninstallDisplayIcon={app}\{#MyAppExeName}
+; Prefer a real .ico for Windows Settings → Installed apps (exe-only can render blank).
+UninstallDisplayIcon={app}\winbox.ico
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -61,11 +62,13 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Brand icon for ARP / Settings Apps list (also published beside the exe by dist.ps1).
+Source: "{#SetupIcon}"; DestDir: "{app}"; DestName: "winbox.ico"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\winbox.ico"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\winbox.ico"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent

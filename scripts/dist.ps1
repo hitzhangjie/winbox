@@ -228,6 +228,31 @@ if (-not (Test-Path -LiteralPath $exePath)) {
     throw "Expected apphost missing after publish: $exePath"
 }
 
+# Ship brand .ico beside the exe (Inno UninstallDisplayIcon / Start Menu IconFilename).
+if (-not (Test-Path -LiteralPath $iconPath)) {
+    throw "Brand icon missing: $iconPath"
+}
+$publishedIcon = Join-Path $publishDir "winbox.ico"
+Copy-Item -LiteralPath $iconPath -Destination $publishedIcon -Force
+
+# Gate: published apphost must expose a Win32 icon (ApplicationIcon in Host csproj).
+Add-Type -AssemblyName System.Drawing
+$associatedIcon = $null
+try {
+    $associatedIcon = [System.Drawing.Icon]::ExtractAssociatedIcon($exePath)
+    if ($null -eq $associatedIcon -or $associatedIcon.Width -lt 1 -or $associatedIcon.Height -lt 1) {
+        throw "ExtractAssociatedIcon returned empty icon."
+    }
+}
+catch {
+    throw "Published WinBox.Host.exe is missing an embedded Win32 icon. Set <ApplicationIcon>Assets\winbox.ico</ApplicationIcon> in WinBox.Host.csproj. $_"
+}
+finally {
+    if ($null -ne $associatedIcon) {
+        $associatedIcon.Dispose()
+    }
+}
+
 # Drop runtime diagnostic helper; not needed for end-user packages.
 $createDump = Join-Path $publishDir "createdump.exe"
 if (Test-Path -LiteralPath $createDump) {

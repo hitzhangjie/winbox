@@ -144,6 +144,20 @@ Host 子系统按配置切换，**不用改 csproj**：`make run`（Debug）是�
 版本来源：tag 名（去掉前导 `v`）优先；本地未指定时用 `Directory.Build.props` 中的 `Version`（当前 `0.1.0`）。
 
 本地第一次打安装包时，若未安装 [Inno Setup 6](https://jrsoftware.org/isinfo.php)，`scripts/dist.ps1` 会尝试自动下载并装到 `%LocalAppData%\Programs\Inno Setup 6`。CI 则通过 Chocolatey 安装。
+
+## Windows 安全提示（当前未代码签名）
+
+Release / `make dist` 产物**尚未做 Authenticode 签名**，首次运行或通过 WinBox 打开关联文件（如 PDF）时，Windows / SmartScreen 可能提示「未知发布者」或「已保护你的电脑」。这是预期现象，不是安装损坏。
+
+**如何继续运行（SmartScreen）：**
+
+1. 在蓝色/黄色拦截页点击 **更多信息**（More info）
+2. 再点 **仍要运行**（Run anyway）
+
+浏览器下载 Setup / zip 时若被拦截，在下载栏选择「保留」即可。本机用 `make run` / `dotnet run` 开发一般不会走这条路径。
+
+我们正在申请开源项目可用的免费 [SignPath](https://signpath.org) 签名；是否获批取决于项目可见度与信誉积累，**不能保证一定通过**。获批并接入前，请按上面步骤手动放行。
+
 ## 贡献
 
 欢迎提想法与 Issue。第一次接触本仓库或 C# 也没关系：
